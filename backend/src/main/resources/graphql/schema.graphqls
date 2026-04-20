@@ -1,0 +1,75 @@
+# ============================================================
+#  schema.graphqls — Gold challenge
+#  Același service layer, expus prin GraphQL
+#  Accesibil la /graphql (și /graphiql pentru playground)
+# ============================================================
+
+type Meetup {
+    id: ID!
+    titleEvent: String!
+    location: String!
+    date: String!
+    bookId: Int
+    bookTitle: String
+    bookAuthor: String
+    ownerID: Int!
+    ownerUsername: String!
+    duration: Int!
+    rating: Float
+    description: String
+}
+
+type PagedMeetups {
+    content: [Meetup!]!
+    page: Int!
+    pageSize: Int!
+    totalElements: Int!
+    totalPages: Int!
+    first: Boolean!
+    last: Boolean!
+}
+
+type Stats {
+    total: Int!
+    averageRating: Float!
+}
+
+type Query {
+    meetups(page: Int, size: Int): PagedMeetups!
+    meetup(id: ID!): Meetup
+    stats: Stats!
+    statsByLocation: [LocationStat!]!
+    statsByBook: [BookStat!]!
+}
+
+type LocationStat {
+    location: String!
+    count: Int!
+}
+
+type BookStat {
+    book: String!
+    count: Int!
+}
+
+type Mutation {
+    createMeetup(input: MeetupInput!): Meetup!
+    updateMeetup(id: ID!, input: MeetupInput!): Meetup
+    deleteMeetup(id: ID!): Boolean!
+    startGenerator(interval: Int): Boolean!
+    stopGenerator: Boolean!
+}
+
+input MeetupInput {
+    titleEvent: String!
+    location: String!
+    date: String!
+    bookId: Int!
+    bookTitle: String
+    bookAuthor: String
+    ownerID: Int!
+    ownerUsername: String!
+    duration: Int!
+    rating: Float
+    description: String
+}
