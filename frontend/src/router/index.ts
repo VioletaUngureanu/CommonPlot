@@ -35,11 +35,11 @@ const router = createRouter({
           name: 'meetups',
           component: () => import('@/views/MeetupsView.vue'),
         },
-        // {
-        //   path: 'network',
-        //   name: 'network',
-        //   component: () => import('@/views/NetworkView.vue'),
-        // },
+        {
+          path: 'network',
+          name: 'network',
+          component: () => import('@/views/NetworkView.vue'),
+        },
         {
           path: 'statistics',
           name: 'statistics',
@@ -49,6 +49,11 @@ const router = createRouter({
           path: 'books',
           name: 'books',
           component: () => import('@/views/MeetupsView.vue'), // placeholder
+        },
+        {
+          path: 'books/:bookId/meetups',
+          name: 'book-meetups',
+          component: () => import('@/views/BookMeetupsView.vue'),
         },
         {
           path: 'chat',
@@ -66,13 +71,26 @@ const router = createRouter({
 })
 
 // ── Navigation Guards ─────────────────────────────────────────
+// router.beforeEach((to) => {
+//   const hasSession = document.cookie.includes('commonplot_session')
+//
+//   if (to.meta.requiresAuth && !hasSession) {
+//     return { name: 'login' }
+//   }
+//
+//   if (to.meta.guestOnly && hasSession) {
+//     return { name: 'meetups' }
+//   }
+// })
+
 router.beforeEach((to) => {
-  const hasSession = document.cookie.includes('commonplot_session')
+  const hasSession = document.cookie
+    .split(';')
+    .some(c => c.trim().startsWith('commonplot_session='))
 
   if (to.meta.requiresAuth && !hasSession) {
     return { name: 'login' }
   }
-
   if (to.meta.guestOnly && hasSession) {
     return { name: 'meetups' }
   }

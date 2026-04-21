@@ -1,5 +1,6 @@
 package org.commonplot.backend.meetups.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.*;
 
 public class MeetupRequest {
@@ -19,9 +20,10 @@ public class MeetupRequest {
     )
     private String date;
 
+    @JsonProperty("bookID")
     @NotNull(message = "Book ID is required.")
     @Positive(message = "Book ID must be a positive integer.")
-    private Integer bookId;
+    private Integer bookID;
 
     private String bookTitle;
     private String bookAuthor;
@@ -55,8 +57,8 @@ public class MeetupRequest {
     public String getDate()                   { return date; }
     public void setDate(String d)             { this.date = d; }
 
-    public Integer getBookId()                { return bookId; }
-    public void setBookId(Integer b)          { this.bookId = b; }
+    public Integer getBookID()                { return bookID; }
+    public void setBookID(Integer b)          { this.bookID = b; }
 
     public String getBookTitle()              { return bookTitle; }
     public void setBookTitle(String t)        { this.bookTitle = t; }

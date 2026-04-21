@@ -64,7 +64,7 @@ const handleRegister = async () => {
 
       <!-- Logo -->
       <div class="auth-logo" @click="router.push('/')">
-        <img src="../assets/logoDarkBackground.png" alt="CommonPlot logo" class="auth-logo__img" />
+        <img src="../assets/logo.png.png" alt="CommonPlot logo" class="auth-logo__img" />
       </div>
 
       <!-- Title -->

@@ -55,17 +55,17 @@ public class BooksGraphQLController {
         return bookService.delete(id);
     }
 
-    @MutationMapping
-    public boolean startGenerator(@Argument Integer interval) {
-        bookService.startGenerator(interval != null ? interval : 2);
-        return true;
-    }
-
-    @MutationMapping
-    public boolean stopGenerator() {
-        bookService.stopGenerator();
-        return true;
-    }
+//    @MutationMapping
+//    public boolean startGenerator(@Argument Integer interval) {
+//        bookService.startGenerator(interval != null ? interval : 2);
+//        return true;
+//    }
+//
+//    @MutationMapping
+//    public boolean stopGenerator() {
+//        bookService.stopGenerator();
+//        return true;
+//    }
 
     // ── Mapper ────────────────────────────────────────────────
     private BookRequest mapToRequest(Map<String, Object> input) {

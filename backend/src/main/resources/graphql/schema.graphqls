@@ -9,7 +9,7 @@ type Meetup {
     titleEvent: String!
     location: String!
     date: String!
-    bookId: Int
+    bookID: Int
     bookTitle: String
     bookAuthor: String
     ownerID: Int!
@@ -64,7 +64,7 @@ input MeetupInput {
     titleEvent: String!
     location: String!
     date: String!
-    bookId: Int!
+    bookID: Int!
     bookTitle: String
     bookAuthor: String
     ownerID: Int!

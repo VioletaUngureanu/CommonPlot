@@ -30,7 +30,7 @@ class MeetupServiceTest {
         req.setTitleEvent("Test Book Club");
         req.setLocation("Test Cafe, Cluj");
         req.setDate("2026-12-01T10:00");
-        req.setBookId(57);
+        req.setBookID(57);
         req.setBookTitle("Atomic Habits");
         req.setBookAuthor("James Clear");
         req.setOwnerID(1);

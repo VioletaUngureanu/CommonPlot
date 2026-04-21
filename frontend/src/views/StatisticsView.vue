@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Bar } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -8,26 +8,40 @@ import {
 } from 'chart.js'
 import { useStatisticsStore } from '@/stores/statistics'
 import { useMeetupsStore } from '@/stores/meetups'
+import { useWebSocket } from '@/composables/useWebSocket'
+import type { Meetup } from '../types/indexes.ts'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const stats   = useStatisticsStore()
 const meetups = useMeetupsStore()
 
-// Oprește thread-ul dacă userul navighează în altă parte
+// ── WebSocket — actualizare live grafice ──────────────────────
+const wsNewCount   = ref(0)
+const wsConnected  = ref(false)
+
+const { connect: wsConnect, connected } = useWebSocket((meetup: Meetup) => {
+  // Spread array nou → Vue detectează schimbarea → computed() recalculat
+  meetups.meetups       = [...meetups.meetups, meetup]
+  meetups.totalElements = meetups.meetups.length
+  wsNewCount.value++
+})
+
+// Sync wsConnected din composable
+import { watch } from 'vue'
+watch(connected, (val) => { wsConnected.value = val })
+
+onMounted(async () => {
+  if (meetups.meetups.length === 0) {
+    await meetups.loadPage(0, 50)  // ← adaugă asta
+  }
+  wsConnect()
+})
 onUnmounted(() => stats.stopThread())
 
 // ── View type ─────────────────────────────────────────────────
-import { ref } from 'vue'
 const viewType    = ref<'Bar Chart' | 'Tabular View'>('Bar Chart')
 const viewOptions = ['Bar Chart', 'Tabular View']
-
-// ── Speed options ─────────────────────────────────────────────
-const speedOptions = [
-  { label: 'Slow (5s)',   ms: 5000 },
-  { label: 'Normal (2s)', ms: 2000 },
-  { label: 'Fast (0.5s)', ms: 500  },
-]
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 
@@ -62,7 +76,10 @@ const horizontalOptions = {
   indexAxis: 'y' as const,
   scales: {
     x: { ...mainChartOptions.scales.x, beginAtZero: true },
-    y: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 }, color: '#621220' } },
+    y: {
+      grid: { display: false },
+      ticks: { font: { family: 'Inter', size: 11 }, color: '#621220' },
+    },
   },
 }
 </script>
@@ -70,7 +87,7 @@ const horizontalOptions = {
 <template>
   <div class="stats-page">
 
-    <!-- ── Header ── -->
+    <!-- Header -->
     <div class="stats-header">
       <h1 class="stats-title">Statistics</h1>
       <select v-model="viewType" class="chart-select">
@@ -78,35 +95,25 @@ const horizontalOptions = {
       </select>
     </div>
 
-    <!-- ── Thread control panel ── -->
-    <div class="thread-panel">
+    <!-- Thread control panel -->
+    <div class="thread-panel" :class="{ running: stats.threadRunning }">
       <div class="thread-panel__left">
         <div class="thread-info">
-          <span class="thread-label">Auto-generator</span>
+          <span class="thread-label">
+            Auto-generator
+            <span class="ws-status" :class="{ connected: wsConnected }">
+              {{ wsConnected ? '● Live' : '○ Connecting...' }}
+            </span>
+          </span>
           <span class="thread-counter">
             {{ meetups.totalCount }} total meet-ups
-            <span v-if="stats.addedByThread > 0" class="thread-added">
-              (+{{ stats.addedByThread }} generated)
+            <span v-if="wsNewCount > 0" class="thread-added">
+              (+{{ wsNewCount }} via WebSocket)
             </span>
           </span>
         </div>
-
-        <!-- Speed selector -->
-        <div class="speed-group">
-          <span class="speed-label">Speed:</span>
-          <button
-            v-for="opt in speedOptions"
-            :key="opt.ms"
-            class="speed-btn"
-            :class="{ active: stats.threadSpeed === opt.ms }"
-            @click="stats.setSpeed(opt.ms)"
-          >
-            {{ opt.label }}
-          </button>
-        </div>
       </div>
 
-      <!-- Toggle -->
       <button
         class="thread-toggle"
         :class="{ running: stats.threadRunning }"
@@ -117,7 +124,7 @@ const horizontalOptions = {
       </button>
     </div>
 
-    <!-- ── Most Discussed Books ── -->
+    <!-- Most Discussed Books -->
     <div class="card card--main">
       <div class="card__header">
         <h2 class="card__title">Most Discussed Books in Meet-ups</h2>
@@ -152,7 +159,7 @@ const horizontalOptions = {
               </tr>
               </thead>
               <tbody>
-              <tr v-for="(book, i) in stats.topBooks" :key="book.bookID">
+              <tr v-for="book in stats.topBooks" :key="book.bookID">
                 <td class="td-book">{{ book.title }}</td>
                 <td v-for="(count, j) in book.counts" :key="j">{{ count }}</td>
                 <td class="td-total">{{ book.total }}</td>
@@ -175,24 +182,86 @@ const horizontalOptions = {
       </div>
     </div>
 
-    <!-- ── Bottom row ── -->
+    <!-- Bottom row: Cities + Locations -->
     <div class="bottom-row">
+
+      <!-- Active Cities -->
       <div class="card">
         <h2 class="card__title">Active Cities</h2>
-        <div class="chart-wrap chart-wrap--sm">
-          <Bar v-if="stats.activeCities.length > 0" :data="stats.citiesChartData" :options="horizontalOptions" />
-          <p v-else class="chart-empty">No data yet.</p>
-        </div>
+
+        <!-- Bar chart -->
+        <template v-if="viewType === 'Bar Chart'">
+          <div class="chart-wrap chart-wrap--sm">
+            <Bar
+              v-if="stats.activeCities.length > 0"
+              :data="stats.citiesChartData"
+              :options="horizontalOptions"
+            />
+            <p v-else class="chart-empty">No data yet.</p>
+          </div>
+        </template>
+
+        <!-- Tabular -->
+        <template v-else>
+          <table class="stats-table">
+            <thead>
+            <tr>
+              <th style="text-align:left">City</th>
+              <th>Meet-ups</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr v-for="c in stats.activeCities" :key="c.city">
+              <td class="td-book">{{ c.city }}</td>
+              <td class="td-total">{{ c.count }}</td>
+            </tr>
+            <tr v-if="stats.activeCities.length === 0">
+              <td colspan="2" class="empty-state">No data.</td>
+            </tr>
+            </tbody>
+          </table>
+        </template>
       </div>
+
+      <!-- Popular Locations -->
       <div class="card">
         <h2 class="card__title">Popular Locations</h2>
-        <div class="chart-wrap chart-wrap--sm">
-          <Bar v-if="stats.popularLocations.length > 0" :data="stats.locationsChartData" :options="horizontalOptions" />
-          <p v-else class="chart-empty">No data yet.</p>
-        </div>
-      </div>
-    </div>
 
+        <!-- Bar chart -->
+        <template v-if="viewType === 'Bar Chart'">
+          <div class="chart-wrap chart-wrap--sm">
+            <Bar
+              v-if="stats.popularLocations.length > 0"
+              :data="stats.locationsChartData"
+              :options="horizontalOptions"
+            />
+            <p v-else class="chart-empty">No data yet.</p>
+          </div>
+        </template>
+
+        <!-- Tabular -->
+        <template v-else>
+          <table class="stats-table">
+            <thead>
+            <tr>
+              <th style="text-align:left">Location</th>
+              <th>Meet-ups</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr v-for="l in stats.popularLocations" :key="l.location">
+              <td class="td-book">{{ l.location }}</td>
+              <td class="td-total">{{ l.count }}</td>
+            </tr>
+            <tr v-if="stats.popularLocations.length === 0">
+              <td colspan="2" class="empty-state">No data.</td>
+            </tr>
+            </tbody>
+          </table>
+        </template>
+      </div>
+
+    </div>
   </div>
 </template>
 
@@ -232,7 +301,7 @@ const horizontalOptions = {
   outline: none;
 }
 
-/* ── Thread panel ── */
+/* Thread panel */
 .thread-panel {
   display: flex;
   align-items: center;
@@ -244,17 +313,10 @@ const horizontalOptions = {
   border-left: 4px solid var(--color-border);
   transition: border-color var(--transition-fast);
 }
-.thread-panel:has(.thread-toggle.running) {
-  border-left-color: #2ecc71;
-}
+.thread-panel.running { border-left-color: #2ecc71; }
 
-.thread-panel__left {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.thread-info { display: flex; flex-direction: column; gap: 2px; }
+.thread-panel__left { display: flex; flex-direction: column; gap: var(--space-2); }
+.thread-info        { display: flex; flex-direction: column; gap: 2px; }
 
 .thread-label {
   font-family: var(--font-sans);
@@ -274,31 +336,16 @@ const horizontalOptions = {
   font-weight: 600;
   margin-left: var(--space-1);
 }
-
-/* Speed buttons */
-.speed-group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.speed-label {
+.ws-status {
   font-family: var(--font-sans);
   font-size: var(--text-xs);
-  color: var(--burgundy-600);
+  font-weight: 600;
+  margin-left: var(--space-2);
+  color: var(--cream-600);
+  text-transform: none;
+  letter-spacing: 0;
 }
-.speed-btn {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--color-border);
-  background: var(--color-bg-muted);
-  color: var(--color-text);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-.speed-btn:hover  { border-color: var(--color-primary); }
-.speed-btn.active { background: var(--color-primary); color: var(--color-text-inverse); border-color: var(--color-primary); }
+.ws-status.connected { color: #2ecc71; }
 
 /* Toggle button */
 .thread-toggle {
@@ -316,27 +363,16 @@ const horizontalOptions = {
   cursor: pointer;
   transition: all var(--transition-fast);
 }
-.thread-toggle:hover { background: var(--color-primary); color: var(--color-text-inverse); }
-
-.thread-toggle.running {
-  background: #2ecc71;
-  border-color: #2ecc71;
-  color: white;
-}
-.thread-toggle.running:hover {
-  background: #27ae60;
-  border-color: #27ae60;
-}
+.thread-toggle:hover         { background: var(--color-primary); color: var(--color-text-inverse); }
+.thread-toggle.running       { background: #2ecc71; border-color: #2ecc71; color: white; }
+.thread-toggle.running:hover { background: #27ae60; border-color: #27ae60; }
 
 .thread-toggle__dot {
   width: 8px; height: 8px;
   border-radius: var(--radius-full);
   background: currentColor;
-  animation: none;
 }
-.thread-toggle.running .thread-toggle__dot {
-  animation: pulse 1s infinite;
-}
+.thread-toggle.running .thread-toggle__dot { animation: pulse 1s infinite; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -365,7 +401,7 @@ const horizontalOptions = {
   align-items: start;
 }
 
-/* Chart */
+/* Charts */
 .chart-wrap     { height: 260px; position: relative; }
 .chart-wrap--sm { height: 200px; }
 .chart-empty {
@@ -377,7 +413,7 @@ const horizontalOptions = {
   padding-top: var(--space-8);
 }
 
-/* Table */
+/* Tables */
 .table-outer { overflow-x: auto; }
 .stats-table {
   width: 100%;
@@ -396,7 +432,7 @@ const horizontalOptions = {
   border-bottom: 2px solid var(--color-border);
 }
 .th-book { text-align: left; min-width: 160px; }
-.stats-table tbody tr { border-bottom: 1px solid var(--color-border); }
+.stats-table tbody tr { border-bottom: 1px solid var(--color-border); transition: background var(--transition-fast); }
 .stats-table tbody tr:hover { background: var(--color-bg-muted); }
 .stats-table td { padding: var(--space-2) var(--space-3); text-align: center; color: var(--color-text); }
 .td-book  { text-align: left; font-weight: 600; color: var(--burgundy-700); }
@@ -405,8 +441,8 @@ const horizontalOptions = {
 
 /* Legend */
 .legend { display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-2); }
-.legend__item { display: flex; align-items: center; gap: var(--space-2); }
-.legend__dot  { width: 10px; height: 10px; border-radius: var(--radius-full); flex-shrink: 0; }
+.legend__item  { display: flex; align-items: center; gap: var(--space-2); }
+.legend__dot   { width: 10px; height: 10px; border-radius: var(--radius-full); flex-shrink: 0; }
 .legend__label { font-family: var(--font-sans); font-size: var(--text-xs); color: var(--color-text); flex: 1; line-height: 1.3; }
 .legend__pct   { font-family: var(--font-sans); font-size: var(--text-xs); font-weight: 600; color: var(--burgundy-700); }
 .legend__empty { font-family: var(--font-sans); font-size: var(--text-xs); color: var(--cream-600); font-style: italic; }

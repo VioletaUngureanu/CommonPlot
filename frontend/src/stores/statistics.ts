@@ -56,55 +56,40 @@ export const useStatisticsStore = defineStore('statistics', () => {
 
   // ── Thread state ──────────────────────────────────────────
   const threadRunning  = ref(false)
-  const threadInterval = ref<ReturnType<typeof setInterval> | null>(null)
-  const threadSpeed    = ref(2000) // ms între fiecare meetup adăugat
-  const addedByThread  = ref(0)    // contor afișat în UI
+  const threadSpeed    = ref(2000) // ms
+  const addedByThread  = ref(0)
 
-  function startThread() {
+  // ── Backend generator (Silver) ────────────────────────────
+  async function startThread() {
     if (threadRunning.value) return
-    threadRunning.value = true
-    threadInterval.value = setInterval(() => {
-      const book = randomItem(MOCK_BOOKS)
-      const location = randomItem(MOCK_LOCATIONS)
-      const ownerID = Math.floor(Math.random() * 200) + 1
-
-      const payload: CreateMeetupPayload = {
-        titleEvent:    `Auto: ${book.title} @ ${location.split(',')[0]}`,
-        location,
-        date:          randomFutureDate(),
-        bookID:        book.id,
-        bookTitle:     book.title,
-        bookAuthor:    book.author,
-        ownerID,
-        ownerUsername: randomItem(MOCK_USERNAMES),
-        duration:      [60, 90, 120][Math.floor(Math.random() * 3)]!,
-        rating:        Math.round((3.5 + Math.random() * 1.5) * 10) / 10,
-        description:   `Auto-generated meet-up for ${book.title}.`,
-      }
-
-      meetupsStore.addMeetup(payload)
-      addedByThread.value++
-    }, threadSpeed.value)
+    try {
+      const intervalSeconds = Math.round(threadSpeed.value / 1000)
+      await fetch(
+        `http://localhost:8080/api/meetups/generator/start?interval=${intervalSeconds}`,
+        { method: 'POST' }
+      )
+      threadRunning.value = true
+    } catch {
+      console.error('Could not start generator — is the backend running?')
+    }
   }
 
-  function stopThread() {
-    if (threadInterval.value) {
-      clearInterval(threadInterval.value)
-      threadInterval.value = null
-    }
+  async function stopThread() {
+    try {
+      await fetch('http://localhost:8080/api/meetups/generator/stop', { method: 'POST' })
+    } catch { /* ignore */ }
     threadRunning.value = false
   }
 
-  function toggleThread() {
-    threadRunning.value ? stopThread() : startThread()
+  async function toggleThread() {
+    threadRunning.value ? await stopThread() : await startThread()
   }
 
-  function setSpeed(ms: number) {
+  async function setSpeed(ms: number) {
     threadSpeed.value = ms
-    // Restartează cu noua viteză dacă rulează
     if (threadRunning.value) {
-      stopThread()
-      startThread()
+      await stopThread()
+      await startThread()
     }
   }
 

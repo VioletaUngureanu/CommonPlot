@@ -101,7 +101,7 @@ public class MeetupGraphQLController {
         req.setTitleEvent((String) input.get("titleEvent"));
         req.setLocation((String) input.get("location"));
         req.setDate((String) input.get("date"));
-        req.setBookId((Integer) input.get("bookId"));
+        req.setBookID((Integer) input.get("bookId"));
         req.setBookTitle((String) input.get("bookTitle"));
         req.setBookAuthor((String) input.get("bookAuthor"));
         req.setOwnerID((Integer) input.get("ownerID"));

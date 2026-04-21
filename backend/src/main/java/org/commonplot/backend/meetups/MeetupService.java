@@ -223,6 +223,12 @@ public class MeetupService {
         // Notifică toți clienții WebSocket conectați
         messagingTemplate.convertAndSend("/topic/meetups", generated);
     }
+    public List<Meetup> getMeetupsByBookId(Integer bookId) {
+        return store.values().stream()
+                .filter(m -> bookId.equals(m.getBookID()))
+                .sorted(Comparator.comparing(Meetup::getId))
+                .collect(Collectors.toList());
+    }
 
     // ── Mapper ────────────────────────────────────────────────
     private Meetup mapFromRequest(Long id, MeetupRequest req) {
@@ -231,7 +237,7 @@ public class MeetupService {
                 req.getTitleEvent(),
                 req.getLocation(),
                 req.getDate(),
-                req.getBookId(),
+                req.getBookID(),
                 req.getBookTitle(),
                 req.getBookAuthor(),
                 req.getOwnerID(),
