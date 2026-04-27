@@ -6,7 +6,7 @@
 //  Schimbă doar această linie pentru a comuta între REST și GraphQL:
 //  false = REST  (/api/meetups)
 //  true  = GraphQL (/graphql)
-const USE_GRAPHQL = true
+const USE_GRAPHQL = false
 // ─────────────────────────────────────────────────────────────
 
 import type { Meetup, CreateMeetupPayload, UpdateMeetupPayload } from '../types/indexes.ts'

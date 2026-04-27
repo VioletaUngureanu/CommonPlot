@@ -37,7 +37,51 @@ export const useMeetupsStore = defineStore('meetups', () => {
   const allMeetups  = computed(() => meetups.value)
   const totalCount  = computed(() => totalElements.value)
 
-  // ── Network monitoring (Silver) ───────────────────────────
+  // ── Infinite scroll support ───────────────────────────────────
+  const PAGE_SIZE     = 10
+  const hasMore       = ref(true)
+  const loadingMore   = ref(false)
+  const prefetchCache = ref<Map<number, Meetup[]>>(new Map())
+
+  async function loadNextPage(): Promise<void> {
+    if (loadingMore.value || !hasMore.value) return
+    loadingMore.value = true
+
+    const nextPage = currentPage.value + 1
+    try {
+      // Folosește cache dacă pagina a fost prefetchată
+      if (prefetchCache.value.has(nextPage)) {
+        const cached = prefetchCache.value.get(nextPage)!
+        meetups.value = [...meetups.value, ...cached]
+        prefetchCache.value.delete(nextPage)
+        currentPage.value = nextPage
+        hasMore.value = nextPage < totalPages.value - 1
+      } else {
+        const response = await api.fetchMeetups(nextPage, PAGE_SIZE)
+        meetups.value       = [...meetups.value, ...response.content]
+        totalElements.value = response.totalElements
+        totalPages.value    = response.totalPages
+        currentPage.value   = nextPage
+        hasMore.value       = !response.last
+      }
+    } catch {
+      // ignoră erorile de scroll
+    } finally {
+      loadingMore.value = false
+    }
+  }
+
+  async function prefetchNextPage(): Promise<void> {
+    const nextPage = currentPage.value + 1
+    if (!hasMore.value || prefetchCache.value.has(nextPage)) return
+    try {
+      const response = await api.fetchMeetups(nextPage, PAGE_SIZE)
+      prefetchCache.value.set(nextPage, response.content)
+    } catch {
+      // prefetch silențios
+    }
+  }
+
   function initNetworkMonitoring() {
     // Verifică serverul la fiecare 5 secunde
     setInterval(async () => {
@@ -102,8 +146,10 @@ export const useMeetupsStore = defineStore('meetups', () => {
       totalElements.value = response.totalElements
       totalPages.value    = response.totalPages
       currentPage.value   = response.page
+      hasMore.value       = !response.last    // ← adaugă
+      prefetchCache.value.clear()             // ← adaugă
     } catch (e) {
-      error.value = 'Could not connect to server. Working in offline mode.'
+      error.value    = 'Could not connect to server. Working in offline mode.'
       isOnline.value = false
     } finally {
       loading.value = false
@@ -217,5 +263,9 @@ export const useMeetupsStore = defineStore('meetups', () => {
     deleteMeetup,
     initNetworkMonitoring,
     syncOfflineQueue,
+    hasMore,
+    loadingMore,
+    loadNextPage,
+    prefetchNextPage,
   }
 })
