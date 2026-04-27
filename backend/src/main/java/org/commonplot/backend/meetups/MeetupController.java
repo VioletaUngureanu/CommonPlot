@@ -18,7 +18,7 @@ import java.util.Map;
 // ============================================================
 @RestController
 @RequestMapping("/api/meetups")
-@CrossOrigin(origins = "http://localhost:5173")  // Vue frontend
+@CrossOrigin(origins = "*")  // Vue frontend
 public class MeetupController {
 
     private final MeetupService meetupService;

@@ -12,6 +12,7 @@ import type { Meetup, CreateMeetupPayload, UpdateMeetupPayload } from '../types/
 import { validateMeetup, hasErrors } from '@/utils/meetupValidation'
 import * as api from '@/api/meetupApi'
 import type { PagedResponse } from '@/api/meetupApi'
+import { BACKEND_URL } from '@/config'
 
 type OfflineOperation =
   | { type: 'create'; payload: CreateMeetupPayload }
@@ -44,6 +45,7 @@ export const useMeetupsStore = defineStore('meetups', () => {
   const prefetchCache = ref<Map<number, Meetup[]>>(new Map())
 
   async function loadNextPage(): Promise<void> {
+
     if (loadingMore.value || !hasMore.value) return
     loadingMore.value = true
 
@@ -86,8 +88,8 @@ export const useMeetupsStore = defineStore('meetups', () => {
     // Verifică serverul la fiecare 5 secunde
     setInterval(async () => {
       try {
-        await fetch('http://localhost:8080/api/meetups/stats/count', {
-          signal: AbortSignal.timeout(3000) // timeout 3s
+        await fetch(`${BACKEND_URL}/api/meetups/stats/count`, {
+          signal: AbortSignal.timeout(3000)
         })
 
         // Serverul e disponibil

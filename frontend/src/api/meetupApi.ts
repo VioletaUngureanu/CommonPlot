@@ -12,8 +12,8 @@ const USE_GRAPHQL = false
 import type { Meetup, CreateMeetupPayload, UpdateMeetupPayload } from '../types/indexes.ts'
 import { GraphQLClient, gql } from 'graphql-request'
 
-const BASE_URL    = 'http://localhost:8080/api/meetups'
-const GQL_CLIENT  = new GraphQLClient('http://localhost:8080/graphql')
+const BASE_URL = '/api/meetups'
+const GQL_CLIENT  = new GraphQLClient('/api/graphql')
 
 // ── Tipuri răspuns backend ────────────────────────────────────
 export interface PagedResponse<T> {
