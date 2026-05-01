@@ -2,10 +2,6 @@ package org.commonplot.backend;
 
 import java.util.List;
 
-// ============================================================
-//  PagedResponse.java — wrapper pentru răspunsuri paginate
-//  Returnează datele + metadata de paginare
-// ============================================================
 public class PagedResponse<T> {
 
     private List<T> content;

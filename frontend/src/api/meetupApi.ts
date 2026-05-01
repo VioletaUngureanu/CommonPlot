@@ -1,12 +1,7 @@
-// ============================================================
-//  api/meetupApi.ts
-//  Layer de comunicare cu backend-ul Spring Boot.
-//
-//  ── MODE SWITCH ──────────────────────────────────────────────
-//  Schimbă doar această linie pentru a comuta între REST și GraphQL:
+
 //  false = REST  (/api/meetups)
 //  true  = GraphQL (/graphql)
-const USE_GRAPHQL = false
+const USE_GRAPHQL = true
 // ─────────────────────────────────────────────────────────────
 
 import type { Meetup, CreateMeetupPayload, UpdateMeetupPayload } from '../types/indexes.ts'

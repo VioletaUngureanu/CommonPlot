@@ -34,11 +34,10 @@ export const useMeetupsStore = defineStore('meetups', () => {
   const offlineQueue   = ref<OfflineOperation[]>([])
   const offlineNextId  = ref(-1) // IDs negativi pentru entități offline
 
-  // ── Getters ───────────────────────────────────────────────
+
   const allMeetups  = computed(() => meetups.value)
   const totalCount  = computed(() => totalElements.value)
 
-  // ── Infinite scroll support ───────────────────────────────────
   const PAGE_SIZE     = 10
   const hasMore       = ref(true)
   const loadingMore   = ref(false)
@@ -51,7 +50,7 @@ export const useMeetupsStore = defineStore('meetups', () => {
 
     const nextPage = currentPage.value + 1
     try {
-      // Folosește cache dacă pagina a fost prefetchată
+
       if (prefetchCache.value.has(nextPage)) {
         const cached = prefetchCache.value.get(nextPage)!
         meetups.value = [...meetups.value, ...cached]
@@ -67,7 +66,7 @@ export const useMeetupsStore = defineStore('meetups', () => {
         hasMore.value       = !response.last
       }
     } catch {
-      // ignoră erorile de scroll
+
     } finally {
       loadingMore.value = false
     }
@@ -80,7 +79,7 @@ export const useMeetupsStore = defineStore('meetups', () => {
       const response = await api.fetchMeetups(nextPage, PAGE_SIZE)
       prefetchCache.value.set(nextPage, response.content)
     } catch {
-      // prefetch silențios
+
     }
   }
 

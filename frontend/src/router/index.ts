@@ -5,95 +5,64 @@ import AppLayout from '@/layouts/AppLayout.vue'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    // ── Publice (fără sidebar, fără auth) ──────────────────
+    // ── Publice ────────────────────────────────────────────────
+    { path: '/', name: 'home', component: HomeView },
     {
-      path: '/',
-      name: 'home',
-      component: HomeView,
-    },
-    {
-      path: '/login',
-      name: 'login',
+      path: '/login', name: 'login',
       component: () => import('@/views/LoginView.vue'),
       meta: { guestOnly: true },
     },
     {
-      path: '/register',
-      name: 'register',
+      path: '/register', name: 'register',
       component: () => import('@/views/RegisterView.vue'),
       meta: { guestOnly: true },
     },
 
-    // ── Protejate (cu sidebar, necesită autentificare) ──────
+    // ── Protejate ──────────────────────────────────────────────
     {
-      path: '/',
-      component: AppLayout,
+      path: '/', component: AppLayout,
       meta: { requiresAuth: true },
       children: [
         {
-          path: 'meetups',
-          name: 'meetups',
+          path: 'meetups', name: 'meetups',
           component: () => import('@/views/MeetupsView.vue'),
         },
         {
-          path: 'network',
-          name: 'network',
-          component: () => import('@/views/NetworkView.vue'),
+          path: 'books', name: 'books',
+          component: () => import('@/views/BooksView.vue'),
         },
         {
-          path: 'statistics',
-          name: 'statistics',
-          component: () => import('@/views/StatisticsView.vue'),
-        },
-        {
-          path: 'books',
-          name: 'books',
-          component: () => import('@/views/MeetupsView.vue'), // placeholder
-        },
-        {
-          path: 'books/:bookId/meetups',
-          name: 'book-meetups',
+          path: 'books/:bookId/meetups', name: 'book-meetups',
           component: () => import('@/views/BookMeetupsView.vue'),
         },
         {
-          path: 'chat',
-          name: 'chat',
-          component: () => import('@/views/MeetupsView.vue'), // placeholder
+          path: 'statistics', name: 'statistics',
+          component: () => import('@/views/StatisticsView.vue'),
         },
         {
-          path: 'settings',
-          name: 'settings',
-          component: () => import('@/views/MeetupsView.vue'), // placeholder
+          path: 'network', name: 'network',
+          component: () => import('@/views/NetworkView.vue'),
+        },
+        {
+          path: 'chat', name: 'chat',
+          component: () => import('@/views/MeetupsView.vue'),
+        },
+        {
+          path: 'settings', name: 'settings',
+          component: () => import('@/views/MeetupsView.vue'),
         },
       ],
     },
   ],
 })
 
-// ── Navigation Guards ─────────────────────────────────────────
-// router.beforeEach((to) => {
-//   const hasSession = document.cookie.includes('commonplot_session')
-//
-//   if (to.meta.requiresAuth && !hasSession) {
-//     return { name: 'login' }
-//   }
-//
-//   if (to.meta.guestOnly && hasSession) {
-//     return { name: 'meetups' }
-//   }
-// })
-
 router.beforeEach((to) => {
   const hasSession = document.cookie
     .split(';')
     .some(c => c.trim().startsWith('commonplot_session='))
 
-  if (to.meta.requiresAuth && !hasSession) {
-    return { name: 'login' }
-  }
-  if (to.meta.guestOnly && hasSession) {
-    return { name: 'meetups' }
-  }
+  if (to.meta.requiresAuth && !hasSession) return { name: 'login' }
+  if (to.meta.guestOnly && hasSession)      return { name: 'meetups' }
 })
 
 export default router

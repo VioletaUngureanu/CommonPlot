@@ -37,11 +37,11 @@ public class MeetupService {
 
     // ── Date mock inițiale ────────────────────────────────────
     private static final List<String[]> BOOKS = List.of(
-            new String[]{"39",  "Crime and Punishment",    "Fyodor Dostoevsky"},
-            new String[]{"57",  "Atomic Habits",           "James Clear"},
-            new String[]{"101", "The Trial",               "Franz Kafka"},
-            new String[]{"120", "War and Peace",           "Leo Tolstoy"},
-            new String[]{"300", "The Brothers Karamazov",  "Fyodor Dostoevsky"}
+            new String[]{"1",  "Crime and Punishment",    "Fyodor Dostoevsky"},
+            new String[]{"2",  "Atomic Habits",           "James Clear"},
+            new String[]{"3", "The Trial",               "Franz Kafka"},
+            new String[]{"4", "War and Peace",           "Leo Tolstoy"},
+            new String[]{"5", "The Brothers Karamazov",  "Fyodor Dostoevsky"}
     );
 
     private static final List<String> LOCATIONS = List.of(
@@ -58,19 +58,19 @@ public class MeetupService {
     // ── Init mock data ────────────────────────────────────────
     private void initMockData() {
         createInternal("Morning Coffee & Dostoievski", "Bunt, Cluj-Napoca",
-                "2026-05-12T10:30", 300, "The Brothers Karamazov", "Fyodor Dostoevsky",
+                "2026-05-12T10:30", 1, "The Brothers Karamazov", "Fyodor Dostoevsky",
                 53, "Alex M.", 120, 4.9, "Discussing moral dilemmas from the first chapters.");
         createInternal("Atomic Habits Monday", "Cafe, Iași",
-                "2026-04-06T15:00", 57, "Atomic Habits", "James Clear",
+                "2026-04-06T15:00", 2, "Atomic Habits", "James Clear",
                 34, "Maria P.", 90, 4.5, "Building better reading habits together.");
         createInternal("Evening Philosophy", "Everast, București",
-                "2026-04-06T18:00", 39, "Crime and Punishment", "Fyodor Dostoevsky",
+                "2026-04-06T18:00", 3, "Crime and Punishment", "Fyodor Dostoevsky",
                 70, "Ionut B.", 60, 4.2, "A short but intense discussion about existentialism.");
         createInternal("Kafka & Cappuccino", "Meron, Cluj-Napoca",
-                "2026-04-07T10:00", 101, "The Trial", "Franz Kafka",
+                "2026-04-07T10:00", 4, "The Trial", "Franz Kafka",
                 136, "Andrei V.", 120, 4.8, "Exploring the absurd through Kafka's lens.");
         createInternal("War and Peace Tuesday", "Everast, București",
-                "2026-04-07T19:30", 120, "War and Peace", "Leo Tolstoy",
+                "2026-04-07T19:30", 5, "War and Peace", "Leo Tolstoy",
                 91, "Ioana L.", 90, 4.6, "Discussing the Napoleonic campaigns.");
     }
 
@@ -160,6 +160,12 @@ public class MeetupService {
                 .orElse(0.0);
     }
 
+    public List<Meetup> getMeetupsByBookId(Integer bookId) {
+        return store.values().stream()
+                .filter(m -> m.getBookID() != null && bookId.equals(m.getBookID()))
+                .sorted(Comparator.comparing(Meetup::getId))
+                .collect(Collectors.toList());
+    }
     // ══════════════════════════════════════════════════════════
     //  Silver: Auto-generator cu Faker + WebSocket
     // ══════════════════════════════════════════════════════════
@@ -222,12 +228,6 @@ public class MeetupService {
 
         // Notifică toți clienții WebSocket conectați
         messagingTemplate.convertAndSend("/topic/meetups", generated);
-    }
-    public List<Meetup> getMeetupsByBookId(Integer bookId) {
-        return store.values().stream()
-                .filter(m -> bookId.equals(m.getBookID()))
-                .sorted(Comparator.comparing(Meetup::getId))
-                .collect(Collectors.toList());
     }
 
     // ── Mapper ────────────────────────────────────────────────

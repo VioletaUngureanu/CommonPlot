@@ -1,8 +1,17 @@
 # ============================================================
 #  schema.graphqls — Gold challenge
-#  Același service layer, expus prin GraphQL
-#  Accesibil la /graphql (și /graphiql pentru playground)
+#  Books + Meetups + relație 1-to-many
 # ============================================================
+
+# ── Types ─────────────────────────────────────────────────────
+
+type Book {
+    id: ID!
+    title: String!
+    author: String!
+    description: String
+    coverUrl: String
+}
 
 type Meetup {
     id: ID!
@@ -29,17 +38,16 @@ type PagedMeetups {
     last: Boolean!
 }
 
-type Stats {
+type MeetupStats {
     total: Int!
     averageRating: Float!
 }
 
-type Query {
-    meetups(page: Int, size: Int): PagedMeetups!
-    meetup(id: ID!): Meetup
-    stats: Stats!
-    statsByLocation: [LocationStat!]!
-    statsByBook: [BookStat!]!
+type BookMeetupStats {
+    bookId: Int!
+    totalMeetups: Int!
+    avgRating: Float!
+    avgDuration: Int!
 }
 
 type LocationStat {
@@ -52,13 +60,40 @@ type BookStat {
     count: Int!
 }
 
+# ── Queries ───────────────────────────────────────────────────
+
+type Query {
+    # Meetups
+    meetups(page: Int, size: Int): PagedMeetups!
+    meetup(id: ID!): Meetup
+    meetupStats: MeetupStats!
+    statsByLocation: [LocationStat!]!
+    statsByBook: [BookStat!]!
+
+    # Books
+    books: [Book!]!
+    book(id: ID!): Book
+    meetupsByBook(bookId: Int!): [Meetup!]!
+    bookStats(bookId: Int!): BookMeetupStats!
+}
+
+# ── Mutations ─────────────────────────────────────────────────
+
 type Mutation {
+    # Meetups
     createMeetup(input: MeetupInput!): Meetup!
     updateMeetup(id: ID!, input: MeetupInput!): Meetup
     deleteMeetup(id: ID!): Boolean!
     startGenerator(interval: Int): Boolean!
     stopGenerator: Boolean!
+
+    # Books
+    createBook(input: BookInput!): Book!
+    updateBook(id: ID!, input: BookInput!): Book
+    deleteBook(id: ID!): Boolean!
 }
+
+# ── Inputs ────────────────────────────────────────────────────
 
 input MeetupInput {
     titleEvent: String!
@@ -72,4 +107,11 @@ input MeetupInput {
     duration: Int!
     rating: Float
     description: String
+}
+
+input BookInput {
+    title: String!
+    author: String!
+    description: String
+    coverUrl: String
 }

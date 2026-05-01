@@ -1,50 +1,42 @@
 package org.commonplot.backend.books.model;
 
+// ============================================================
+//  Book.java — entitatea de carte, stocată în RAM
+//  Relație: 1 Book → N Meetups (prin bookID în Meetup)
+// ============================================================
 public class Book {
 
-    private Long id;
-    private String titleBook;
-    private String bookAuthor;
-    private String bookDescription;
+    private Integer id;
+    private String title;
+    private String author;
+    private String description;
+    private String coverUrl;
 
-    public Book(){}
+    // ── Constructors ──────────────────────────────────────────
+    public Book() {}
 
-    public Book(Long id, String titleBook, String bookAuthor, String bookDescription) {
-        this.id = id;
-        this.titleBook = titleBook;
-        this.bookAuthor = bookAuthor;
-        this.bookDescription = bookDescription;
+    public Book(Integer id, String title, String author,
+                String description, String coverUrl) {
+        this.id          = id;
+        this.title       = title;
+        this.author      = author;
+        this.description = description;
+        this.coverUrl    = coverUrl;
     }
 
-    public Long getId() {
-        return id;
-    }
+    // ── Getters & Setters ─────────────────────────────────────
+    public Integer getId()                 { return id; }
+    public void setId(Integer id)          { this.id = id; }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    public String getTitle()               { return title; }
+    public void setTitle(String t)         { this.title = t; }
 
-    public String getTitleBook() {
-        return titleBook;
-    }
+    public String getAuthor()              { return author; }
+    public void setAuthor(String a)        { this.author = a; }
 
-    public void setTitleBook(String titleBook) {
-        this.titleBook = titleBook;
-    }
+    public String getDescription()         { return description; }
+    public void setDescription(String d)   { this.description = d; }
 
-    public String getBookAuthor() {
-        return bookAuthor;
-    }
-
-    public void setBookAuthor(String bookAuthor) {
-        this.bookAuthor = bookAuthor;
-    }
-
-    public String getBookDescription() {
-        return bookDescription;
-    }
-
-    public void setBookDescription(String bookDescription) {
-        this.bookDescription = bookDescription;
-    }
+    public String getCoverUrl()            { return coverUrl; }
+    public void setCoverUrl(String c)      { this.coverUrl = c; }
 }
