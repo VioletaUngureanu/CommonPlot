@@ -4,62 +4,22 @@ import org.commonplot.backend.books.model.Book;
 import org.commonplot.backend.books.model.BookRequest;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Optional;
 
 // ============================================================
-//  BookService.java — RAM storage + CRUD pentru cărți
-//
-//  IMPORTANT: BookService nu injectează MeetupService.
-//  Relația 1-to-many (Book → Meetups) e rezolvată în
-//  BookController care injectează ambele servicii direct.
-//  Astfel evităm dependențe circulare.
+//  BookService.java — CRUD cu JPA repository
+//  ConcurrentHashMap → BookRepository (PostgreSQL)
+//  ID-urile sunt generate de DB (SERIAL), nu de AtomicInteger
+//  Mock data e în V1__init.sql (Flyway), nu aici
 // ============================================================
 @Service
 public class BookService {
 
-    // ── RAM Storage ───────────────────────────────────────────
-    private final ConcurrentHashMap<Integer, Book> store = new ConcurrentHashMap<>();
-    private final AtomicInteger idCounter = new AtomicInteger(1);
+    private final BookRepository bookRepository;
 
-    // ── Date mock inițiale ────────────────────────────────────
-    public BookService() {
-        initMockData();
-    }
-
-    private void initMockData() {
-        create(new BookRequest() {{
-            setTitle("Crime and Punishment");
-            setAuthor("Fyodor Dostoevsky");
-            setDescription("A psychological novel about guilt and redemption.");
-            setCoverUrl("https://covers.openlibrary.org/b/id/14898568-L.jpg");
-        }});
-        create(new BookRequest() {{
-            setTitle("Atomic Habits");
-            setAuthor("James Clear");
-            setDescription("An easy guide to building good habits and breaking bad ones.");
-            setCoverUrl("https://covers.openlibrary.org/b/id/15108516-L.jpg");
-        }});
-        create(new BookRequest() {{
-            setTitle("The Trial");
-            setAuthor("Franz Kafka");
-            setDescription("A man is prosecuted by an inaccessible authority for an unspecified crime.");
-            setCoverUrl("https://covers.openlibrary.org/b/id/15082861-L.jpg");
-        }});
-        create(new BookRequest() {{
-            setTitle("War and Peace");
-            setAuthor("Leo Tolstoy");
-            setDescription("Epic novel of Russian society during the Napoleonic era.");
-            setCoverUrl("https://covers.openlibrary.org/b/id/15111564-L.jpg");
-        }});
-        create(new BookRequest() {{
-            setTitle("The Brothers Karamazov");
-            setAuthor("Fyodor Dostoevsky");
-            setDescription("A passionate philosophical novel set in 19th-century Russia.");
-            setCoverUrl("https://covers.openlibrary.org/b/id/8272329-L.jpg");
-        }});
+    public BookService(BookRepository bookRepository) {
+        this.bookRepository = bookRepository;
     }
 
     // ══════════════════════════════════════════════════════════
@@ -67,41 +27,40 @@ public class BookService {
     // ══════════════════════════════════════════════════════════
 
     public List<Book> getAll() {
-        return store.values().stream()
-                .sorted(Comparator.comparing(Book::getId))
-                .collect(Collectors.toList());
+        return bookRepository.findAll();
     }
 
     public Optional<Book> getById(Integer id) {
-        return Optional.ofNullable(store.get(id));
+        return bookRepository.findById(id);
     }
 
     public Book create(BookRequest req) {
-        Integer id = idCounter.getAndIncrement();
-        Book book  = mapFromRequest(id, req);
-        store.put(id, book);
-        return book;
+        return bookRepository.save(mapFromRequest(req));
     }
 
     public Optional<Book> update(Integer id, BookRequest req) {
-        if (!store.containsKey(id)) return Optional.empty();
-        Book book = mapFromRequest(id, req);
-        store.put(id, book);
-        return Optional.of(book);
+        return bookRepository.findById(id).map(existing -> {
+            existing.setTitle(req.getTitle());
+            existing.setAuthor(req.getAuthor());
+            existing.setDescription(req.getDescription());
+            existing.setCoverUrl(req.getCoverUrl());
+            return bookRepository.save(existing);
+        });
     }
 
     public boolean delete(Integer id) {
-        return store.remove(id) != null;
+        if (!bookRepository.existsById(id)) return false;
+        bookRepository.deleteById(id);
+        return true;
     }
 
     public long count() {
-        return store.size();
+        return bookRepository.count();
     }
 
     // ── Mapper ────────────────────────────────────────────────
-    private Book mapFromRequest(Integer id, BookRequest req) {
+    private Book mapFromRequest(BookRequest req) {
         return new Book(
-                id,
                 req.getTitle(),
                 req.getAuthor(),
                 req.getDescription(),

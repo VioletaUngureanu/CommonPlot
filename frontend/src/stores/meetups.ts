@@ -84,28 +84,25 @@ export const useMeetupsStore = defineStore('meetups', () => {
   }
 
   function initNetworkMonitoring() {
-    // Verifică serverul la fiecare 5 secunde
+    let failCount = 0  // numărăm eșecurile consecutive
+
     setInterval(async () => {
       try {
-        await fetch(`${BACKEND_URL}/api/meetups/stats/count`, {
-          signal: AbortSignal.timeout(3000)
+        await fetch('/api/meetups/stats/count', {
+          signal: AbortSignal.timeout(5000)  // ← mărești la 5s
         })
+        failCount = 0  // reset la succes
 
-        // Serverul e disponibil
         if (!isOnline.value) {
-          // Tocmai a revenit online
           isOnline.value = true
           error.value = null
-
-          if (offlineQueue.value.length > 0) {
-            await syncOfflineQueue()
-          }
-
+          if (offlineQueue.value.length > 0) await syncOfflineQueue()
           await loadPage(currentPage.value)
         }
       } catch {
-        // Serverul nu e disponibil
-        if (isOnline.value) {
+        failCount++
+        // Consideră offline doar după 2 eșecuri consecutive
+        if (failCount >= 2 && isOnline.value) {
           isOnline.value = false
           error.value = 'Server unreachable. Working offline.'
         }

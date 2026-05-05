@@ -1,8 +1,18 @@
 package org.commonplot.backend.meetups.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.*;
 
+// ============================================================
+//  MeetupRequest.java — DTO pentru creare și actualizare
+//
+//  bookTitle și bookAuthor NU mai sunt stocate în Meetup —
+//  vin din relația @ManyToOne cu Book.
+//  @JsonIgnoreProperties permite frontend-ului să le trimită
+//  în continuare fără să cauzeze erori.
+// ============================================================
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class MeetupRequest {
 
     @NotBlank(message = "Event title is required.")
@@ -25,6 +35,7 @@ public class MeetupRequest {
     @Positive(message = "Book ID must be a positive integer.")
     private Integer bookID;
 
+    // Ignorat la procesare — vine din relația Book în DB
     private String bookTitle;
     private String bookAuthor;
 
@@ -48,36 +59,36 @@ public class MeetupRequest {
     private String description;
 
     // ── Getters & Setters ─────────────────────────────────────
-    public String getTitleEvent()             { return titleEvent; }
-    public void setTitleEvent(String t)       { this.titleEvent = t; }
+    public String getTitleEvent()           { return titleEvent; }
+    public void setTitleEvent(String t)     { this.titleEvent = t; }
 
-    public String getLocation()               { return location; }
-    public void setLocation(String l)         { this.location = l; }
+    public String getLocation()             { return location; }
+    public void setLocation(String l)       { this.location = l; }
 
-    public String getDate()                   { return date; }
-    public void setDate(String d)             { this.date = d; }
+    public String getDate()                 { return date; }
+    public void setDate(String d)           { this.date = d; }
 
-    public Integer getBookID()                { return bookID; }
-    public void setBookID(Integer b)          { this.bookID = b; }
+    public Integer getBookID()              { return bookID; }
+    public void setBookID(Integer b)        { this.bookID = b; }
 
-    public String getBookTitle()              { return bookTitle; }
-    public void setBookTitle(String t)        { this.bookTitle = t; }
+    public String getBookTitle()            { return bookTitle; }
+    public void setBookTitle(String t)      { this.bookTitle = t; }
 
-    public String getBookAuthor()             { return bookAuthor; }
-    public void setBookAuthor(String a)       { this.bookAuthor = a; }
+    public String getBookAuthor()           { return bookAuthor; }
+    public void setBookAuthor(String a)     { this.bookAuthor = a; }
 
-    public Integer getOwnerID()               { return ownerID; }
-    public void setOwnerID(Integer o)         { this.ownerID = o; }
+    public Integer getOwnerID()             { return ownerID; }
+    public void setOwnerID(Integer o)       { this.ownerID = o; }
 
-    public String getOwnerUsername()          { return ownerUsername; }
-    public void setOwnerUsername(String u)    { this.ownerUsername = u; }
+    public String getOwnerUsername()        { return ownerUsername; }
+    public void setOwnerUsername(String u)  { this.ownerUsername = u; }
 
-    public Integer getDuration()              { return duration; }
-    public void setDuration(Integer d)        { this.duration = d; }
+    public Integer getDuration()            { return duration; }
+    public void setDuration(Integer d)      { this.duration = d; }
 
-    public Double getRating()                 { return rating; }
-    public void setRating(Double r)           { this.rating = r; }
+    public Double getRating()               { return rating; }
+    public void setRating(Double r)         { this.rating = r; }
 
-    public String getDescription()            { return description; }
-    public void setDescription(String d)      { this.description = d; }
+    public String getDescription()          { return description; }
+    public void setDescription(String d)    { this.description = d; }
 }

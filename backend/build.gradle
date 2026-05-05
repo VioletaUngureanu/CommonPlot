@@ -1,5 +1,5 @@
 plugins {
-	id 'java'
+    id 'java'
     id 'org.springframework.boot' version '3.4.5'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'jacoco'
@@ -16,21 +16,40 @@ java {
 }
 
 repositories {
-	mavenCentral()
+    mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-graphql'
-	implementation 'org.springframework.boot:spring-boot-starter-validation'
+    // ── Web + Validation + WebSocket + GraphQL ────────────────
     implementation 'org.springframework.boot:spring-boot-starter-web'
-	implementation 'org.springframework.boot:spring-boot-starter-websocket'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-graphql'
+
+    // ── JPA + Hibernate (ORM) ─────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // ── PostgreSQL driver (runtime) ───────────────────────────
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // ── Flyway — migrare schemă din obiecte Java ──────────────
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+
+    // ── Faker + JSON ──────────────────────────────────────────
     implementation 'net.datafaker:datafaker:2.1.0'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // ── Testing ───────────────────────────────────────────────
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.graphql:spring-graphql-test'
+
+    // H2 — bază de date in-memory pentru teste (nu atinge PostgreSQL)
+    testRuntimeOnly 'com.h2database:h2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-
+// ── JaCoCo coverage ───────────────────────────────────────────
 jacoco {
     toolVersion = "0.8.14"
 }
