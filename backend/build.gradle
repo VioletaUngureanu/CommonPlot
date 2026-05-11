@@ -26,13 +26,14 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-graphql'
 
-    // ── JPA + Hibernate (ORM) ─────────────────────────────────
+    // ── JPA + Hibernate (PostgreSQL) ──────────────────────────
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-
-    // ── PostgreSQL driver (runtime) ───────────────────────────
     runtimeOnly 'org.postgresql:postgresql'
 
-    // ── Flyway — migrare schemă din obiecte Java ──────────────
+    // ── MongoDB (chat) ────────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+
+    // ── Flyway ────────────────────────────────────────────────
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 
@@ -43,13 +44,10 @@ dependencies {
     // ── Testing ───────────────────────────────────────────────
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.graphql:spring-graphql-test'
-
-    // H2 — bază de date in-memory pentru teste (nu atinge PostgreSQL)
     testRuntimeOnly 'com.h2database:h2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-// ── JaCoCo coverage ───────────────────────────────────────────
 jacoco {
     toolVersion = "0.8.14"
 }

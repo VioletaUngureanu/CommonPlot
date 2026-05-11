@@ -40,12 +40,16 @@ const router = createRouter({
           component: () => import('@/views/StatisticsView.vue'),
         },
         {
+          path: 'admin', name: 'admin',
+          component: () => import('@/views/AdminView.vue'),
+        },
+        {
           path: 'network', name: 'network',
           component: () => import('@/views/NetworkView.vue'),
         },
         {
           path: 'chat', name: 'chat',
-          component: () => import('@/views/MeetupsView.vue'),
+          component: () => import('@/views/ChatView.vue'),
         },
         {
           path: 'settings', name: 'settings',

@@ -33,6 +33,8 @@ export interface User {
   username: string
   fullName: string
   email: string
+  role: string              // 'ADMIN' | 'USER'
+  permissions: string[]     // ['MEETUP_CREATE', 'BOOK_READ', ...]
 }
 
 // ── Payloads ──────────────────────────────────────────────────

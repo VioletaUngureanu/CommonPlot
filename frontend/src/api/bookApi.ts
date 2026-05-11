@@ -3,10 +3,19 @@
 // ============================================================
 
 import type { Book, Meetup, CreateBookPayload } from '../types/indexes.ts'
+import { useUsersStore } from '@/stores/users.ts'
 
 const BASE = '/api/books'
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const users = useUsersStore()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (users.currentUser) {
+    headers['X-Username'] = users.currentUser.username
+    headers['X-Role']     = users.currentUser.role
+  }
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     ...options,

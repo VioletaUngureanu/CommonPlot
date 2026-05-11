@@ -52,7 +52,7 @@ public class Meetup {
     @Column(nullable = false)
     private Integer duration;
 
-    @DecimalMin("0.0") @DecimalMax("5.0")
+    @Column(columnDefinition = "DECIMAL(3,1)")
     private Double rating;
 
     @Size(max = 500)
