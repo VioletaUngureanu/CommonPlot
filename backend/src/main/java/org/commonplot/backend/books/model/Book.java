@@ -1,23 +1,44 @@
 package org.commonplot.backend.books.model;
 
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
 // ============================================================
-//  Book.java — entitatea de carte, stocată în RAM
-//  Relație: 1 Book → N Meetups (prin bookID în Meetup)
+//  Book.java — entitate JPA
+//  Tabel: books
+//  Relație: 1 Book → N Meetups
 // ============================================================
+@Entity
+@Table(name = "books")
 public class Book {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
+
+    @NotBlank
+    @Size(max = 200)
+    @Column(nullable = false, length = 200)
     private String title;
+
+    @NotBlank
+    @Size(max = 100)
+    @Column(nullable = false, length = 100)
     private String author;
+
+    @Size(max = 1000)
+    @Column(length = 1000)
     private String description;
+
+    @Size(max = 500)
+    @Column(name = "cover_url", length = 500)
     private String coverUrl;
 
     // ── Constructors ──────────────────────────────────────────
     public Book() {}
 
-    public Book(Integer id, String title, String author,
-                String description, String coverUrl) {
-        this.id          = id;
+    public Book(String title, String author, String description, String coverUrl) {
         this.title       = title;
         this.author      = author;
         this.description = description;

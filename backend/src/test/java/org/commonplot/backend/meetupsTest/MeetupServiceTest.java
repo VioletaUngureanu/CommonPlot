@@ -1,7 +1,8 @@
 package org.commonplot.backend.meetupsTest;
 
-
-
+import org.commonplot.backend.books.BookRepository;
+import org.commonplot.backend.books.model.Book;
+import org.commonplot.backend.meetups.MeetupRepository;
 import org.commonplot.backend.meetups.MeetupService;
 import org.commonplot.backend.meetups.model.Meetup;
 import org.commonplot.backend.meetups.model.MeetupRequest;
@@ -9,30 +10,49 @@ import org.commonplot.backend.PagedResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.data.domain.*;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 // ============================================================
-//  MeetupServiceTest.java — unit tests pentru service
-//  Testează CRUD, paginare și statistici
-//  Coverage maxim pe logica de business
+//  MeetupServiceTest.java — unit tests pentru MeetupService
+//  Folosește mock-uri pentru repository-uri (fără DB reală)
+//  Profilul de test: H2 in-memory
 // ============================================================
 class MeetupServiceTest {
 
     private MeetupService service;
+    private MeetupRepository meetupRepository;
+    private BookRepository bookRepository;
 
-    // Helper: request valid
+    // ── Sample data ───────────────────────────────────────────
+    private Book sampleBook() {
+        Book b = new Book("Atomic Habits", "James Clear", "Build good habits.", null);
+        b.setId(1);
+        return b;
+    }
+
+    private Meetup sampleMeetup(Long id) {
+        Meetup m = new Meetup(
+                "Test Book Club", "Test Cafe, Cluj", "2026-12-01T10:00",
+                sampleBook(), 1, "testuser", 90, 4.5, "A test meetup."
+        );
+        m.setId(id);
+        return m;
+    }
+
     private MeetupRequest validRequest() {
         MeetupRequest req = new MeetupRequest();
         req.setTitleEvent("Test Book Club");
         req.setLocation("Test Cafe, Cluj");
         req.setDate("2026-12-01T10:00");
-        req.setBookID(57);
-        req.setBookTitle("Atomic Habits");
-        req.setBookAuthor("James Clear");
+        req.setBookID(1);
         req.setOwnerID(1);
         req.setOwnerUsername("testuser");
         req.setDuration(90);
@@ -43,214 +63,227 @@ class MeetupServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Mock WebSocket template — nu trimitem mesaje reale în teste
+        meetupRepository = Mockito.mock(MeetupRepository.class);
+        bookRepository   = Mockito.mock(BookRepository.class);
         SimpMessagingTemplate mockTemplate = Mockito.mock(SimpMessagingTemplate.class);
-        service = new MeetupService(mockTemplate);
+
+        service = new MeetupService(meetupRepository, bookRepository, mockTemplate);
+
+        // Default mock behavior
+        when(bookRepository.findById(1)).thenReturn(Optional.of(sampleBook()));
     }
 
     // ── CREATE ────────────────────────────────────────────────
 
     @Test
     void create_returnsNewMeetupWithId() {
-        Meetup m = service.create(validRequest());
-        assertThat(m).isNotNull();
-        assertThat(m.getId()).isNotNull();
-        assertThat(m.getTitleEvent()).isEqualTo("Test Book Club");
+        Meetup saved = sampleMeetup(1L);
+        when(meetupRepository.save(any())).thenReturn(saved);
+
+        Meetup result = service.create(validRequest());
+
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getTitleEvent()).isEqualTo("Test Book Club");
     }
 
     @Test
-    void create_twoMeetupsHaveDifferentIds() {
-        Meetup m1 = service.create(validRequest());
-        Meetup m2 = service.create(validRequest());
-        assertThat(m1.getId()).isNotEqualTo(m2.getId());
+    void create_throwsWhenBookNotFound() {
+        when(bookRepository.findById(99)).thenReturn(Optional.empty());
+        MeetupRequest req = validRequest();
+        req.setBookID(99);
+
+        assertThatThrownBy(() -> service.create(req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Book with ID 99 not found");
     }
 
     @Test
-    void create_increasesCount() {
-        long before = service.count();
-        service.create(validRequest());
-        assertThat(service.count()).isEqualTo(before + 1);
+    void create_setsBookOnMeetup() {
+        Meetup saved = sampleMeetup(1L);
+        when(meetupRepository.save(any())).thenReturn(saved);
+
+        Meetup result = service.create(validRequest());
+
+        assertThat(result.getBook()).isNotNull();
+        assertThat(result.getBookTitle()).isEqualTo("Atomic Habits");
     }
 
     // ── READ ──────────────────────────────────────────────────
 
     @Test
     void getById_returnsExistingMeetup() {
-        Meetup created = service.create(validRequest());
-        Optional<Meetup> found = service.getById(created.getId());
-        assertThat(found).isPresent();
-        assertThat(found.get().getTitleEvent()).isEqualTo("Test Book Club");
+        when(meetupRepository.findById(1L)).thenReturn(Optional.of(sampleMeetup(1L)));
+
+        Optional<Meetup> result = service.getById(1L);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getTitleEvent()).isEqualTo("Test Book Club");
     }
 
     @Test
     void getById_returnsEmptyForNonexistentId() {
+        when(meetupRepository.findById(99999L)).thenReturn(Optional.empty());
+
         assertThat(service.getById(99999L)).isEmpty();
     }
 
     @Test
-    void getAll_returnsMockDataInitially() {
-        PagedResponse<Meetup> page = service.getAll(0, 10);
-        assertThat(page.getContent()).isNotEmpty();
-        assertThat(page.getTotalElements()).isGreaterThan(0);
-    }
+    void getAll_returnsPaginatedContent() {
+        List<Meetup> meetups = List.of(sampleMeetup(1L), sampleMeetup(2L));
+        Page<Meetup> page = new PageImpl<>(meetups, PageRequest.of(0, 10), 2);
+        when(meetupRepository.findAll(any(Pageable.class))).thenReturn(page);
 
-    // ── PAGINATION ────────────────────────────────────────────
+        PagedResponse<Meetup> result = service.getAll(0, 10);
 
-    @Test
-    void getAll_paginationReturnsCorrectPageSize() {
-        // Adaugă suficiente meetup-uri
-        for (int i = 0; i < 10; i++) service.create(validRequest());
-
-        PagedResponse<Meetup> page = service.getAll(0, 3);
-        assertThat(page.getContent()).hasSize(3);
-        assertThat(page.getPageSize()).isEqualTo(3);
+        assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getTotalElements()).isEqualTo(2);
+        assertThat(result.getPage()).isEqualTo(0);
     }
 
     @Test
-    void getAll_page2HasDifferentContentThanPage1() {
-        for (int i = 0; i < 10; i++) service.create(validRequest());
+    void getAll_emptyPage() {
+        Page<Meetup> emptyPage = new PageImpl<>(List.of(), PageRequest.of(99, 10), 0);
+        when(meetupRepository.findAll(any(Pageable.class))).thenReturn(emptyPage);
 
-        PagedResponse<Meetup> page1 = service.getAll(0, 3);
-        PagedResponse<Meetup> page2 = service.getAll(1, 3);
+        PagedResponse<Meetup> result = service.getAll(99, 10);
 
-        assertThat(page1.getContent().get(0).getId())
-                .isNotEqualTo(page2.getContent().get(0).getId());
-    }
-
-    @Test
-    void getAll_emptyPageBeyondTotal() {
-        PagedResponse<Meetup> page = service.getAll(999, 10);
-        assertThat(page.getContent()).isEmpty();
-    }
-
-    @Test
-    void getAll_totalPagesCalculatedCorrectly() {
-        long total = service.count();
-        PagedResponse<Meetup> page = service.getAll(0, 3);
-        int expectedPages = (int) Math.ceil((double) total / 3);
-        assertThat(page.getTotalPages()).isEqualTo(expectedPages);
-    }
-
-    @Test
-    void getAll_firstPageIsFirst() {
-        PagedResponse<Meetup> page = service.getAll(0, 5);
-        assertThat(page.isFirst()).isTrue();
-        assertThat(page.isLast()).isTrue();
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
     }
 
     // ── UPDATE ────────────────────────────────────────────────
 
     @Test
     void update_updatesExistingMeetup() {
-        Meetup created = service.create(validRequest());
-        MeetupRequest updated = validRequest();
-        updated.setLocation("New Location, Iași");
+        Meetup existing = sampleMeetup(1L);
+        when(meetupRepository.findById(1L)).thenReturn(Optional.of(existing));
 
-        Optional<Meetup> result = service.update(created.getId(), updated);
+        MeetupRequest req = validRequest();
+        req.setLocation("New Location, Iași");
+        Meetup updated = sampleMeetup(1L);
+        updated.setLocation("New Location, Iași");
+        when(meetupRepository.save(any())).thenReturn(updated);
+
+        Optional<Meetup> result = service.update(1L, req);
 
         assertThat(result).isPresent();
         assertThat(result.get().getLocation()).isEqualTo("New Location, Iași");
     }
 
     @Test
-    void update_preservesIdAfterUpdate() {
-        Meetup created = service.create(validRequest());
-        service.update(created.getId(), validRequest());
-
-        Optional<Meetup> found = service.getById(created.getId());
-        assertThat(found).isPresent();
-        assertThat(found.get().getId()).isEqualTo(created.getId());
-    }
-
-    @Test
     void update_returnsEmptyForNonexistentId() {
-        Optional<Meetup> result = service.update(99999L, validRequest());
-        assertThat(result).isEmpty();
+        when(meetupRepository.findById(99999L)).thenReturn(Optional.empty());
+
+        assertThat(service.update(99999L, validRequest())).isEmpty();
     }
 
     @Test
-    void update_doesNotChangeCount() {
-        Meetup created = service.create(validRequest());
-        long before = service.count();
-        service.update(created.getId(), validRequest());
-        assertThat(service.count()).isEqualTo(before);
+    void update_preservesId() {
+        Meetup existing = sampleMeetup(1L);
+        when(meetupRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(meetupRepository.save(any())).thenReturn(existing);
+
+        Optional<Meetup> result = service.update(1L, validRequest());
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getId()).isEqualTo(1L);
     }
 
     // ── DELETE ────────────────────────────────────────────────
 
     @Test
-    void delete_removesExistingMeetup() {
-        Meetup created = service.create(validRequest());
-        long before = service.count();
+    void delete_returnsTrueWhenExists() {
+        when(meetupRepository.existsById(1L)).thenReturn(true);
 
-        boolean deleted = service.delete(created.getId());
+        boolean result = service.delete(1L);
 
-        assertThat(deleted).isTrue();
-        assertThat(service.count()).isEqualTo(before - 1);
-        assertThat(service.getById(created.getId())).isEmpty();
+        assertThat(result).isTrue();
+        verify(meetupRepository).deleteById(1L);
     }
 
     @Test
-    void delete_returnsFalseForNonexistentId() {
+    void delete_returnsFalseWhenNotExists() {
+        when(meetupRepository.existsById(99999L)).thenReturn(false);
+
         assertThat(service.delete(99999L)).isFalse();
-    }
-
-    @Test
-    void delete_doesNotAffectOtherMeetups() {
-        Meetup m1 = service.create(validRequest());
-        Meetup m2 = service.create(validRequest());
-
-        service.delete(m1.getId());
-
-        assertThat(service.getById(m2.getId())).isPresent();
+        verify(meetupRepository, never()).deleteById(any());
     }
 
     // ── STATISTICS ────────────────────────────────────────────
 
     @Test
-    void statsByLocation_returnsNonEmptyMap() {
-        assertThat(service.statsByLocation()).isNotEmpty();
+    void count_delegatesToRepository() {
+        when(meetupRepository.count()).thenReturn(42L);
+
+        assertThat(service.count()).isEqualTo(42L);
     }
 
     @Test
-    void statsByBook_returnsNonEmptyMap() {
-        assertThat(service.statsByBook()).isNotEmpty();
+    void averageRating_returnsRepositoryValue() {
+        when(meetupRepository.findAverageRating()).thenReturn(4.3);
+
+        assertThat(service.averageRating()).isEqualTo(4.3);
     }
 
     @Test
-    void averageRating_returnsPositiveValue() {
-        assertThat(service.averageRating()).isGreaterThan(0.0);
+    void averageRating_returnsZeroWhenNull() {
+        when(meetupRepository.findAverageRating()).thenReturn(null);
+
+        assertThat(service.averageRating()).isEqualTo(0.0);
     }
 
     @Test
-    void count_reflectsTotalMeetups() {
-        long before = service.count();
-        service.create(validRequest());
-        assertThat(service.count()).isEqualTo(before + 1);
+    void statsByLocation_returnsMap() {
+        when(meetupRepository.countByLocation()).thenReturn(
+                List.of(new Object[]{"Cluj", 5L}, new Object[]{"București", 3L})
+        );
+
+        var result = service.statsByLocation();
+
+        assertThat(result).containsEntry("Cluj", 5L);
+        assertThat(result).containsEntry("București", 3L);
+    }
+
+    // ── RELAȚIE 1-to-many ─────────────────────────────────────
+
+    @Test
+    void getMeetupsByBookId_returnsCorrectMeetups() {
+        List<Meetup> bookMeetups = List.of(sampleMeetup(1L), sampleMeetup(2L));
+        when(meetupRepository.findByBookId(1)).thenReturn(bookMeetups);
+
+        List<Meetup> result = service.getMeetupsByBookId(1);
+
+        assertThat(result).hasSize(2);
+        assertThat(result).allMatch(m -> m.getBookID().equals(1));
+    }
+
+    @Test
+    void getMeetupsByBookId_returnsEmptyForUnknownBook() {
+        when(meetupRepository.findByBookId(999)).thenReturn(List.of());
+
+        assertThat(service.getMeetupsByBookId(999)).isEmpty();
     }
 
     // ── GENERATOR ─────────────────────────────────────────────
 
     @Test
-    void generator_startsAndStops() throws InterruptedException {
+    void generator_startsAndStops() {
+        when(bookRepository.findAll()).thenReturn(List.of(sampleBook()));
+
         assertThat(service.isGeneratorRunning()).isFalse();
-
-        service.startGenerator(1);
+        service.startGenerator(60);
         assertThat(service.isGeneratorRunning()).isTrue();
-
-        // Așteptăm 2s să genereze cel puțin un meetup
-        Thread.sleep(2000);
-        long countAfter = service.count();
-        assertThat(countAfter).isGreaterThan(5); // erau 5 mock inițiale
-
         service.stopGenerator();
         assertThat(service.isGeneratorRunning()).isFalse();
     }
 
     @Test
     void generator_startTwiceDoesNotDuplicate() {
-        service.startGenerator(10);
-        service.startGenerator(10); // al doilea apel e ignorat
+        when(bookRepository.findAll()).thenReturn(List.of(sampleBook()));
+
+        service.startGenerator(60);
+        service.startGenerator(60);
         assertThat(service.isGeneratorRunning()).isTrue();
         service.stopGenerator();
     }

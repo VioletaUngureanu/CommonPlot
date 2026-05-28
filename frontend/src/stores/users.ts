@@ -1,34 +1,28 @@
 // ============================================================
 //  stores/users.ts
-//  Pinia store pentru utilizatori.
-//  Sesiunea e persistată prin cookies (cerința Silver).
-//  Userii sunt stocați în RAM (sessionStorage).
+//  Pinia store pentru autentificare.
+//  - 3-way authentication (challenge → response → JWT)
+//  - JWT stocat în cookie
+//  - Inactivity logout după 15 minute
+//  - Toate requesturile trimit Authorization: Bearer <token>
 // ============================================================
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { BACKEND_URL } from '@/config'
 
 // ── Tipuri ───────────────────────────────────────────────────
-export interface User {
-  id: number
-  fullName: string
-  username: string
-  email: string
-  password: string        // în producție ar fi hash — aici e plaintext pentru demo
-  createdAt: string
-}
-
 export interface SessionUser {
   id: number
-  fullName: string
   username: string
   email: string
+  fullName: string
+  role: string
+  permissions: string[]
 }
 
 // ── Cookie helpers ────────────────────────────────────────────
-// Cerința Silver: monitorizare activitate prin cookies
-
-function setCookie(name: string, value: string, days: number): void {
+function setCookie(name: string, value: string, days = 1): void {
   const expires = new Date()
   expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000)
   document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/;SameSite=Strict`
@@ -39,178 +33,262 @@ function getCookie(name: string): string | null {
     .split(';')
     .map(c => c.trim())
     .find(c => c.startsWith(`${name}=`))
-  return match ? decodeURIComponent(match.split('=')[1]) : null
+  return match ? decodeURIComponent(match.split('=')[1]!) : null
 }
 
 function deleteCookie(name: string): void {
   document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`
 }
 
-// ── Cookie keys ───────────────────────────────────────────────
-const COOKIE_SESSION    = 'commonplot_session'
-const COOKIE_LAST_VISIT = 'commonplot_last_visit'
-const COOKIE_VISIT_COUNT = 'commonplot_visit_count'
-const SESSION_KEY_USERS = 'commonplot_users'
-
-// ── Date inițiale ─────────────────────────────────────────────
-const INITIAL_USERS: User[] = [
-  {
-    id: 1,
-    fullName: 'Admin User',
-    username: 'admin',
-    email: 'admin@commonplot.com',
-    password: 'admin123',
-    createdAt: '2026-01-01T00:00:00',
-  },
-  {
-    id: 2,
-    fullName: 'Alex Marinescu',
-    username: 'alexm',
-    email: 'alex@commonplot.com',
-    password: 'password123',
-    createdAt: '2026-02-01T00:00:00',
-  },
-]
-
-// ── SessionStorage helpers ────────────────────────────────────
-function loadUsers(): User[] {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY_USERS)
-    return raw ? JSON.parse(raw) : [...INITIAL_USERS]
-  } catch {
-    return [...INITIAL_USERS]
-  }
-}
-
-function saveUsers(users: User[]): void {
-  try {
-    sessionStorage.setItem(SESSION_KEY_USERS, JSON.stringify(users))
-  } catch { /* ignore */ }
-}
+const COOKIE_SESSION = 'commonplot_session'
+const COOKIE_TOKEN   = 'commonplot_token'
 
 function loadSessionFromCookie(): SessionUser | null {
   try {
     const raw = getCookie(COOKIE_SESSION)
     return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
+  } catch { return null }
+}
+
+// ── SHA-256 helper (browser native) ──────────────────────────
+async function sha256(message: string): Promise<string> {
+  const msgBuffer = new TextEncoder().encode(message)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer)
+  const hashArray  = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
 // ── Store ─────────────────────────────────────────────────────
 export const useUsersStore = defineStore('users', () => {
 
-  const users      = ref<User[]>(loadUsers())
-  const nextId     = ref<number>(100)
-  const currentUser = ref<SessionUser | null>(loadSessionFromCookie())
+  const currentUser  = ref<SessionUser | null>(loadSessionFromCookie())
+  const token        = ref<string | null>(getCookie(COOKIE_TOKEN))
+  const loading      = ref(false)
+  const error        = ref<string | null>(null)
 
-  // ── Getters ──
-  const isLoggedIn  = computed(() => currentUser.value !== null)
-  const allUsers    = computed(() => users.value)
+  // ── Inactivity logout — 15 minute ─────────────────────────
+  const INACTIVITY_MS = 15 * 60 * 1000
+  let inactivityTimer: ReturnType<typeof setTimeout> | null = null
 
-  // ── Activity tracking (Silver: cookies) ──────────────────────
-  function trackVisit(): void {
-    const now = new Date().toISOString()
-
-    // Ultima vizită
-    setCookie(COOKIE_LAST_VISIT, now, 30)
-
-    // Număr de vizite
-    const count = parseInt(getCookie(COOKIE_VISIT_COUNT) ?? '0', 10)
-    setCookie(COOKIE_VISIT_COUNT, String(count + 1), 30)
+  function resetInactivityTimer(): void {
+    if (!currentUser.value) return
+    if (inactivityTimer) clearTimeout(inactivityTimer)
+    inactivityTimer = setTimeout(() => {
+      logout()
+      window.location.href = '/login?reason=inactivity'
+    }, INACTIVITY_MS)
   }
 
-  function getActivityInfo(): { lastVisit: string | null; visitCount: number } {
-    return {
-      lastVisit: getCookie(COOKIE_LAST_VISIT),
-      visitCount: parseInt(getCookie(COOKIE_VISIT_COUNT) ?? '0', 10),
+  function startInactivityTracking(): void {
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart']
+    events.forEach(e => window.addEventListener(e, resetInactivityTimer))
+    resetInactivityTimer()
+  }
+
+  function stopInactivityTracking(): void {
+    if (inactivityTimer) clearTimeout(inactivityTimer)
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart']
+    events.forEach(e => window.removeEventListener(e, resetInactivityTimer))
+  }
+
+  // Pornește tracking dacă userul e deja logat (reload pagină)
+  if (currentUser.value) startInactivityTracking()
+
+  // ── Getters ───────────────────────────────────────────────
+  const isLoggedIn    = computed(() => currentUser.value !== null)
+  const isAdmin       = computed(() => currentUser.value?.role === 'ADMIN')
+  const hasPermission = (permission: string) =>
+    currentUser.value?.permissions.includes(permission) ?? false
+
+  // ── Headers helper ────────────────────────────────────────
+  function authHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
     }
+    if (token.value) {
+      headers['Authorization'] = `Bearer ${token.value}`
+    }
+    if (currentUser.value) {
+      headers['X-Username'] = currentUser.value.username
+      headers['X-Role']     = currentUser.value.role
+    }
+    return headers
   }
 
-  // ── Actions ──────────────────────────────────────────────────
-
-  /**
-   * Înregistrare user nou.
-   */
-  function register(payload: {
-    fullName: string
-    username: string
-    email: string
+  // ── 3-Way Login ───────────────────────────────────────────
+  // Step 1: GET /api/auth/challenge → nonce
+  // Step 2: response = SHA256(nonce + SHA256(password))
+  // Step 3: POST /api/auth/login { username, response } → JWT
+  async function login(
+    username: string,
     password: string
-  }): { success: boolean; error?: string } {
+  ): Promise<{ success: boolean; error?: string }> {
+    loading.value = true
+    error.value   = null
 
-    if (users.value.some(u => u.email === payload.email)) {
-      return { success: false, error: 'Email already in use.' }
+    try {
+      // Step 1 — cere challenge
+      const challengeRes = await fetch(
+        `${BACKEND_URL}/api/auth/challenge?username=${encodeURIComponent(username)}`
+      )
+      if (!challengeRes.ok) {
+        return { success: false, error: 'Could not get challenge from server.' }
+      }
+      const { nonce } = await challengeRes.json()
+
+      // Step 2 — calculează response
+      const hashedPassword = await sha256(password)
+      const response       = await sha256(nonce + hashedPassword)
+
+      // Step 3 — trimite response, primește JWT
+      const loginRes = await fetch(`${BACKEND_URL}/api/auth/login`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ username, response }),
+      })
+
+      const data = await loginRes.json()
+
+      if (!loginRes.ok) {
+        return { success: false, error: data.error ?? 'Login failed.' }
+      }
+
+      // Salvează sesiunea și token-ul
+      const session: SessionUser = {
+        id:          data.id,
+        username:    data.username,
+        email:       data.email,
+        fullName:    data.fullName,
+        role:        data.role,
+        permissions: data.permissions ?? [],
+      }
+
+      currentUser.value = session
+      token.value       = data.token
+
+      setCookie(COOKIE_SESSION, JSON.stringify(session))
+      setCookie(COOKIE_TOKEN,   data.token)
+
+      startInactivityTracking()
+      return { success: true }
+
+    } catch {
+      return { success: false, error: 'Cannot connect to server.' }
+    } finally {
+      loading.value = false
     }
-    if (users.value.some(u => u.username === payload.username)) {
-      return { success: false, error: 'Username already taken.' }
-    }
-
-    const newUser: User = {
-      id: nextId.value++,
-      fullName: payload.fullName,
-      username: payload.username,
-      email: payload.email,
-      password: payload.password,
-      createdAt: new Date().toISOString(),
-    }
-
-    users.value.push(newUser)
-    saveUsers(users.value)
-
-    // Auto-login după register
-    _setSession(newUser)
-    return { success: true }
   }
 
-  /**
-   * Autentificare.
-   */
-  function login(email: string, password: string): { success: boolean; error?: string } {
-    const user = users.value.find(u => u.email === email && u.password === password)
-    if (!user) return { success: false, error: 'Invalid email or password.' }
+  // ── Register ──────────────────────────────────────────────
+  async function register(payload: {
+    username: string
+    password: string
+    email: string
+    fullName: string
+  }): Promise<{ success: boolean; error?: string }> {
+    loading.value = true
+    error.value   = null
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/register`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      })
 
-    _setSession(user)
-    trackVisit()
-    return { success: true }
+      const data = await res.json()
+
+      if (!res.ok) {
+        return { success: false, error: data.error ?? 'Registration failed.' }
+      }
+
+      // Backend returnează JWT direct la register
+      const session: SessionUser = {
+        id:          data.id,
+        username:    data.username,
+        email:       data.email ?? '',
+        fullName:    data.fullName ?? '',
+        role:        data.role,
+        permissions: data.permissions ?? [],
+      }
+
+      currentUser.value = session
+      token.value       = data.token
+
+      setCookie(COOKIE_SESSION, JSON.stringify(session))
+      setCookie(COOKIE_TOKEN,   data.token)
+
+      startInactivityTracking()
+      return { success: true }
+
+    } catch {
+      return { success: false, error: 'Cannot connect to server.' }
+    } finally {
+      loading.value = false
+    }
   }
 
-  /**
-   * Deconectare.
-   */
+  // ── Forgot password ───────────────────────────────────────
+  async function forgotPassword(
+    email: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/forgot-password`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email }),
+      })
+      const data = await res.json()
+      return res.ok
+        ? { success: true }
+        : { success: false, error: data.error }
+    } catch {
+      return { success: false, error: 'Cannot connect to server.' }
+    }
+  }
+
+  // ── Reset password ────────────────────────────────────────
+  async function resetPassword(
+    resetToken: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/reset-password`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ token: resetToken, newPassword }),
+      })
+      const data = await res.json()
+      return res.ok
+        ? { success: true }
+        : { success: false, error: data.error }
+    } catch {
+      return { success: false, error: 'Cannot connect to server.' }
+    }
+  }
+
+  // ── Logout ────────────────────────────────────────────────
   function logout(): void {
     currentUser.value = null
+    token.value       = null
     deleteCookie(COOKIE_SESSION)
-  }
-
-  /**
-   * Salvează sesiunea în cookie (30 zile).
-   */
-  function _setSession(user: User): void {
-    const session: SessionUser = {
-      id: user.id,
-      fullName: user.fullName,
-      username: user.username,
-      email: user.email,
-    }
-    currentUser.value = session
-    setCookie(COOKIE_SESSION, JSON.stringify(session), 30)
-  }
-
-  function getUserById(id: number): User | undefined {
-    return users.value.find(u => u.id === id)
+    deleteCookie(COOKIE_TOKEN)
+    stopInactivityTracking()
   }
 
   return {
-    users,
     currentUser,
+    token,
+    loading,
+    error,
     isLoggedIn,
-    allUsers,
-    register,
+    isAdmin,
+    hasPermission,
+    authHeaders,
     login,
+    register,
+    forgotPassword,
+    resetPassword,
     logout,
-    trackVisit,
-    getActivityInfo,
-    getUserById,
+    resetInactivityTimer,
   }
 })

@@ -1,0 +1,8 @@
+.gradle
+build
+*.p12
+*.jks
+.env
+.idea
+*.iml
+out

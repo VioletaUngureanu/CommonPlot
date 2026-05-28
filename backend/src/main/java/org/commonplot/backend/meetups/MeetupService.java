@@ -1,11 +1,14 @@
 package org.commonplot.backend.meetups;
 
-
 import net.datafaker.Faker;
+import org.commonplot.backend.PagedResponse;
+import org.commonplot.backend.books.BookRepository;
+import org.commonplot.backend.books.model.Book;
 import org.commonplot.backend.meetups.model.Meetup;
 import org.commonplot.backend.meetups.model.MeetupRequest;
-import org.commonplot.backend.PagedResponse;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.lang.Nullable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -14,179 +17,158 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-
+// ============================================================
+//  MeetupService.java — CRUD cu JPA repository
+//  ConcurrentHashMap → MeetupRepository (PostgreSQL)
+//  Generator Faker + WebSocket păstrate (Silver)
+// ============================================================
 @Service
 public class MeetupService {
 
-    // ── RAM Storage ───────────────────────────────────────────
-    // ConcurrentHashMap = thread-safe, fără DB, fără persistență
-    private final ConcurrentHashMap<Long, Meetup> store = new ConcurrentHashMap<>();
-    private final AtomicLong idCounter = new AtomicLong(200);
+    private final MeetupRepository  meetupRepository;
+    private final BookRepository    bookRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     // ── Faker + Generator (Silver) ────────────────────────────
     private final Faker faker = new Faker();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private ScheduledFuture<?> generatorTask = null;
+    private ScheduledFuture<?> generatorTask  = null;
     private volatile boolean generatorRunning = false;
 
-    // ── WebSocket (Silver) ────────────────────────────────────
-    private final SimpMessagingTemplate messagingTemplate;
-
-    // ── Date mock inițiale ────────────────────────────────────
-    private static final List<String[]> BOOKS = List.of(
-            new String[]{"1",  "Crime and Punishment",    "Fyodor Dostoevsky"},
-            new String[]{"2",  "Atomic Habits",           "James Clear"},
-            new String[]{"3", "The Trial",               "Franz Kafka"},
-            new String[]{"4", "War and Peace",           "Leo Tolstoy"},
-            new String[]{"5", "The Brothers Karamazov",  "Fyodor Dostoevsky"}
-    );
+    // ID-uri de cărți din DB — populat la prima generare
+    private List<Integer> bookIds = new ArrayList<>();
 
     private static final List<String> LOCATIONS = List.of(
             "Bunt, Cluj-Napoca", "Cafe, Iași", "Everast, București",
             "Hub, București", "Meron, Cluj-Napoca"
     );
 
-    @Autowired
-    public MeetupService(@Nullable SimpMessagingTemplate messagingTemplate) {
+    public MeetupService(MeetupRepository meetupRepository,
+                         BookRepository bookRepository,
+                         @Nullable SimpMessagingTemplate messagingTemplate) {
+        this.meetupRepository  = meetupRepository;
+        this.bookRepository    = bookRepository;
         this.messagingTemplate = messagingTemplate;
-        initMockData();
-    }
-
-    // ── Init mock data ────────────────────────────────────────
-    private void initMockData() {
-        createInternal("Morning Coffee & Dostoievski", "Bunt, Cluj-Napoca",
-                "2026-05-12T10:30", 1, "The Brothers Karamazov", "Fyodor Dostoevsky",
-                53, "Alex M.", 120, 4.9, "Discussing moral dilemmas from the first chapters.");
-        createInternal("Atomic Habits Monday", "Cafe, Iași",
-                "2026-04-06T15:00", 2, "Atomic Habits", "James Clear",
-                34, "Maria P.", 90, 4.5, "Building better reading habits together.");
-        createInternal("Evening Philosophy", "Everast, București",
-                "2026-04-06T18:00", 3, "Crime and Punishment", "Fyodor Dostoevsky",
-                70, "Ionut B.", 60, 4.2, "A short but intense discussion about existentialism.");
-        createInternal("Kafka & Cappuccino", "Meron, Cluj-Napoca",
-                "2026-04-07T10:00", 4, "The Trial", "Franz Kafka",
-                136, "Andrei V.", 120, 4.8, "Exploring the absurd through Kafka's lens.");
-        createInternal("War and Peace Tuesday", "Everast, București",
-                "2026-04-07T19:30", 5, "War and Peace", "Leo Tolstoy",
-                91, "Ioana L.", 90, 4.6, "Discussing the Napoleonic campaigns.");
-    }
-
-    private void createInternal(String title, String location, String date,
-                                int bookId, String bookTitle, String bookAuthor,
-                                int ownerID, String username, int duration,
-                                double rating, String desc) {
-        Long id = idCounter.getAndIncrement();
-        store.put(id, new Meetup(id, title, location, date,
-                bookId, bookTitle, bookAuthor, ownerID, username, duration, rating, desc));
     }
 
     // ══════════════════════════════════════════════════════════
-    //  CRUD operations
+    //  CRUD
     // ══════════════════════════════════════════════════════════
 
-    /** GET all — paginat server-side */
+    /** GET all — paginare server-side cu Spring Data */
     public PagedResponse<Meetup> getAll(int page, int pageSize) {
-        List<Meetup> all = new ArrayList<>(store.values());
-        // Sortare după ID pentru consistență
-        all.sort(Comparator.comparing(Meetup::getId));
-
-        long total = all.size();
-        int start  = page * pageSize;
-        int end    = Math.min(start + pageSize, all.size());
-
-        List<Meetup> pageContent = start >= all.size()
-                ? Collections.emptyList()
-                : all.subList(start, end);
-
-        return new PagedResponse<>(pageContent, page, pageSize, total);
+        Page<Meetup> result = meetupRepository.findAll(
+                PageRequest.of(page, pageSize, Sort.by("id"))
+        );
+        return new PagedResponse<>(
+                result.getContent(),
+                page,
+                pageSize,
+                result.getTotalElements()
+        );
     }
 
     /** GET by ID */
     public Optional<Meetup> getById(Long id) {
-        return Optional.ofNullable(store.get(id));
+        return meetupRepository.findById(id);
     }
 
     /** POST — creare */
     public Meetup create(MeetupRequest req) {
-        Long id = idCounter.getAndIncrement();
-        Meetup m = mapFromRequest(id, req);
-        store.put(id, m);
-        return m;
+        Book book = bookRepository.findById(req.getBookID())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Book with ID " + req.getBookID() + " not found."
+                ));
+        Meetup m = mapFromRequest(req, book);
+        return meetupRepository.save(m);
     }
 
-    /** PUT — actualizare completă */
+    /** PUT — actualizare */
     public Optional<Meetup> update(Long id, MeetupRequest req) {
-        if (!store.containsKey(id)) return Optional.empty();
-        Meetup m = mapFromRequest(id, req);
-        store.put(id, m);
-        return Optional.of(m);
+        return meetupRepository.findById(id).map(existing -> {
+            Book book = bookRepository.findById(req.getBookID())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Book with ID " + req.getBookID() + " not found."
+                    ));
+            existing.setTitleEvent(req.getTitleEvent());
+            existing.setLocation(req.getLocation());
+            existing.setDate(req.getDate());
+            existing.setBook(book);
+            existing.setOwnerID(req.getOwnerID());
+            existing.setOwnerUsername(req.getOwnerUsername());
+            existing.setDuration(req.getDuration());
+            existing.setRating(req.getRating());
+            existing.setDescription(req.getDescription());
+            return meetupRepository.save(existing);
+        });
     }
 
     /** DELETE */
     public boolean delete(Long id) {
-        return store.remove(id) != null;
+        if (!meetupRepository.existsById(id)) return false;
+        meetupRepository.deleteById(id);
+        return true;
     }
 
-    /** Număr total de meetup-uri */
+    /** Total */
     public long count() {
-        return store.size();
+        return meetupRepository.count();
     }
 
     // ── Statistics ────────────────────────────────────────────
 
-    /** Statistici per locație */
     public Map<String, Long> statsByLocation() {
-        return store.values().stream()
-                .collect(Collectors.groupingBy(Meetup::getLocation, Collectors.counting()));
+        return meetupRepository.countByLocation().stream()
+                .collect(Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> (Long)   row[1],
+                        (a, b) -> a,
+                        LinkedHashMap::new
+                ));
     }
 
-    /** Statistici per carte */
     public Map<String, Long> statsByBook() {
-        return store.values().stream()
-                .filter(m -> m.getBookTitle() != null)
-                .collect(Collectors.groupingBy(Meetup::getBookTitle, Collectors.counting()));
+        return meetupRepository.countByBook().stream()
+                .collect(Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> (Long)   row[1],
+                        (a, b) -> a,
+                        LinkedHashMap::new
+                ));
     }
 
-
-    /** Rating mediu */
     public double averageRating() {
-        return store.values().stream()
-                .filter(m -> m.getRating() != null)
-                .mapToDouble(Meetup::getRating)
-                .average()
-                .orElse(0.0);
+        Double avg = meetupRepository.findAverageRating();
+        return avg != null ? Math.round(avg * 10.0) / 10.0 : 0.0;
     }
 
+    // ── Relație 1-to-many ─────────────────────────────────────
     public List<Meetup> getMeetupsByBookId(Integer bookId) {
-        return store.values().stream()
-                .filter(m -> m.getBookID() != null && bookId.equals(m.getBookID()))
-                .sorted(Comparator.comparing(Meetup::getId))
-                .collect(Collectors.toList());
+        return meetupRepository.findByBookId(bookId);
     }
+
     // ══════════════════════════════════════════════════════════
-    //  Silver: Auto-generator cu Faker + WebSocket
+    //  Silver: Generator Faker + WebSocket
     // ══════════════════════════════════════════════════════════
 
     public boolean isGeneratorRunning() {
         return generatorRunning;
     }
 
-    /** Pornește generatorul automat */
     public void startGenerator(int intervalSeconds) {
         if (generatorRunning) return;
         generatorRunning = true;
+        // Încarcă ID-urile cărților din DB
+        bookIds = bookRepository.findAll().stream()
+                .map(Book::getId)
+                .collect(Collectors.toList());
         generatorTask = scheduler.scheduleAtFixedRate(
-                this::generateAndNotify,
-                0,
-                intervalSeconds,
-                TimeUnit.SECONDS
+                this::generateAndNotify, 0, intervalSeconds, TimeUnit.SECONDS
         );
     }
 
-    /** Oprește generatorul */
     public void stopGenerator() {
         if (generatorTask != null) {
             generatorTask.cancel(false);
@@ -195,12 +177,15 @@ public class MeetupService {
         generatorRunning = false;
     }
 
-    /** Generează un meetup fals și notifică clienții prin WebSocket */
     private void generateAndNotify() {
-        String[] book = BOOKS.get(faker.number().numberBetween(0, BOOKS.size()));
+        if (bookIds.isEmpty()) return;
+
+        Integer bookId = bookIds.get(faker.number().numberBetween(0, bookIds.size()));
+        Book book = bookRepository.findById(bookId).orElse(null);
+        if (book == null) return;
+
         String location = LOCATIONS.get(faker.number().numberBetween(0, LOCATIONS.size()));
 
-        // Dată viitoare aleatoare (1-30 zile)
         LocalDateTime futureDate = LocalDateTime.now()
                 .plusDays(faker.number().numberBetween(1, 30))
                 .withHour(faker.number().numberBetween(8, 20))
@@ -208,15 +193,11 @@ public class MeetupService {
 
         String dateStr = futureDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"));
 
-        Long id = idCounter.getAndIncrement();
         Meetup generated = new Meetup(
-                id,
-                "Auto: " + book[1] + " @ " + location.split(",")[0],
+                "Auto: " + book.getTitle() + " @ " + location.split(",")[0],
                 location,
                 dateStr,
-                Integer.parseInt(book[0]),
-                book[1],
-                book[2],
+                book,
                 faker.number().numberBetween(1, 200),
                 faker.name().firstName() + " " + faker.name().lastName().charAt(0) + ".",
                 List.of(60, 90, 120).get(faker.number().numberBetween(0, 3)),
@@ -224,22 +205,20 @@ public class MeetupService {
                 faker.lorem().sentence(10)
         );
 
-        store.put(id, generated);
+        Meetup saved = meetupRepository.save(generated);
 
-        // Notifică toți clienții WebSocket conectați
-        messagingTemplate.convertAndSend("/topic/meetups", generated);
+        if (messagingTemplate != null) {
+            messagingTemplate.convertAndSend("/topic/meetups", saved);
+        }
     }
 
     // ── Mapper ────────────────────────────────────────────────
-    private Meetup mapFromRequest(Long id, MeetupRequest req) {
+    private Meetup mapFromRequest(MeetupRequest req, Book book) {
         return new Meetup(
-                id,
                 req.getTitleEvent(),
                 req.getLocation(),
                 req.getDate(),
-                req.getBookID(),
-                req.getBookTitle(),
-                req.getBookAuthor(),
+                book,
                 req.getOwnerID(),
                 req.getOwnerUsername(),
                 req.getDuration(),

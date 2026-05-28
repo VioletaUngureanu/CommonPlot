@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useMeetupsStore } from '@/stores/meetups'
+import { useUsersStore } from '@/stores/users'
 import type { Meetup, CreateMeetupPayload } from '../types/indexes.ts'
 import MeetupModal from '@/components/MeetupModal.vue'
-import { useInfiniteScroll } from '../composables/useInfiniteScroll'
+import { useInfiniteScroll } from '../composables/UseInfiniteScroll.ts'
 
 const store = useMeetupsStore()
+const users = useUsersStore()
+const isAdmin = computed(() => users.isAdmin)
 
 // ── View mode: tabular vs card ────────────────────────────────
-const viewMode = ref<'table' | 'card'>('table')
+const viewMode = ref<'table' | 'card'>(users.isAdmin ? 'table' : 'card')
 
 // ── Paginare — tabular ────────────────────────────────────────
 const PAGE_SIZE = 10
@@ -169,8 +172,8 @@ const stars = (rating: number) => {
           <input v-model="searchQuery" type="text" placeholder="Search" class="search-input"/>
         </div>
 
-        <!-- View toggle -->
-        <div class="view-toggle">
+        <!-- View toggle — admin only -->
+        <div v-if="isAdmin" class="view-toggle">
           <button
             class="toggle-btn"
             :class="{ active: viewMode === 'table' }"
@@ -200,14 +203,12 @@ const stars = (rating: number) => {
           </button>
         </div>
 
-        <button class="btn-new" @click="openAdd">+ New Meet-up</button>
+        <button v-if="isAdmin" class="btn-new" @click="openAdd">+ New Meet-up</button>
       </div>
     </div>
 
-    <!-- ══════════════════════════════════════════════════════
-         TABLE VIEW
-    ══════════════════════════════════════════════════════ -->
-    <template v-if="viewMode === 'table'">
+    <!-- TABLE VIEW — admin only -->
+    <template v-if="viewMode === 'table' && isAdmin">
       <div class="content" :class="{ 'has-detail': selectedMeetup }">
         <div class="table-wrap">
           <table class="meetup-table">
@@ -354,7 +355,7 @@ const stars = (rating: number) => {
             <!-- Footer actions -->
             <div class="meetup-card__footer" @click.stop>
               <span class="meetup-card__book">Book #{{ m.bookID }}</span>
-              <div class="meetup-card__actions">
+              <div v-if="isAdmin" class="meetup-card__actions">
                 <button class="action-btn action-btn--edit" @click="openEdit(m, $event)">
                   <svg width="13" height="13" viewBox="0 0 15 15" fill="none">
                     <path d="M10.5 2.5l2 2L5 12H3v-2L10.5 2.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
@@ -590,7 +591,7 @@ const stars = (rating: number) => {
 ══════════════════════════════════════════════════════════ */
 .card-wrap {
   flex: 1; overflow-y: auto;
-  padding: var(--space-5) 20rem;
+  padding: var(--space-5) 1.75rem;
 }
 
 .card-grid {

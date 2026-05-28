@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUsersStore } from '@/stores/users'
 import {
   fetchBooks, createBook, updateBook, deleteBook,
   type Book
@@ -8,6 +9,8 @@ import {
 import type { CreateBookPayload } from '../types/indexes.ts'
 
 const router = useRouter()
+const users  = useUsersStore()
+const isAdmin = computed(() => users.isAdmin)
 
 // ── State ─────────────────────────────────────────────────────
 const books   = ref<Book[]>([])
@@ -125,7 +128,7 @@ function onCoverError(e: Event) {
     <!-- Header -->
     <div class="topbar">
       <h1 class="topbar__title">Books</h1>
-      <button class="btn-new" @click="openAdd">+ New Book</button>
+      <button v-if="isAdmin" class="btn-new" @click="openAdd">+ New Book</button>
     </div>
 
     <!-- Error -->
@@ -173,7 +176,7 @@ function onCoverError(e: Event) {
           <button class="btn-meetups" @click="viewMeetups(book.id)">
             View Meet-ups →
           </button>
-          <div class="book-card__actions">
+          <div v-if="isAdmin" class="book-card__actions">
             <button class="action-btn action-btn--edit" @click="openEdit(book)" title="Edit">
               <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
                 <path d="M10.5 2.5l2 2L5 12H3v-2L10.5 2.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>

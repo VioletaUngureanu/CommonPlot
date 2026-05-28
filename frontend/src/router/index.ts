@@ -17,6 +17,14 @@ const router = createRouter({
       component: () => import('@/views/RegisterView.vue'),
       meta: { guestOnly: true },
     },
+    {
+      path: '/forgot-password', name: 'forgot-password',
+      component: () => import('@/views/ForgotPasswordView.vue'),
+    },
+    {
+      path: '/reset-password', name: 'reset-password',
+      component: () => import('@/views/ResetPasswordView.vue'),
+    },
 
     // ── Protejate ──────────────────────────────────────────────
     {
@@ -40,12 +48,16 @@ const router = createRouter({
           component: () => import('@/views/StatisticsView.vue'),
         },
         {
+          path: 'admin', name: 'admin',
+          component: () => import('@/views/AdminView.vue'),
+        },
+        {
           path: 'network', name: 'network',
           component: () => import('@/views/NetworkView.vue'),
         },
         {
           path: 'chat', name: 'chat',
-          component: () => import('@/views/MeetupsView.vue'),
+          component: () => import('@/views/ChatView.vue'),
         },
         {
           path: 'settings', name: 'settings',

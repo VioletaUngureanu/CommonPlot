@@ -13,6 +13,7 @@ import { validateMeetup, hasErrors } from '@/utils/meetupValidation'
 import * as api from '@/api/meetupApi'
 import type { PagedResponse } from '@/api/meetupApi'
 import { BACKEND_URL } from '@/config'
+import { useUsersStore } from '@/stores/users.ts'
 
 type OfflineOperation =
   | { type: 'create'; payload: CreateMeetupPayload }
@@ -84,28 +85,32 @@ export const useMeetupsStore = defineStore('meetups', () => {
   }
 
   function initNetworkMonitoring() {
-    // Verifică serverul la fiecare 5 secunde
+    let failCount = 0
+
     setInterval(async () => {
       try {
-        await fetch(`${BACKEND_URL}/api/meetups/stats/count`, {
-          signal: AbortSignal.timeout(3000)
-        })
+        // ── Adaugă JWT header ──────────────────────────────
+        const users = useUsersStore()
+        const headers: Record<string, string> = {}
+        if (users.token) {
+          headers['Authorization'] = `Bearer ${users.token}`
+        }
 
-        // Serverul e disponibil
+        await fetch('/api/meetups/stats/count', {
+          headers,
+          signal: AbortSignal.timeout(5000)
+        })
+        failCount = 0
+
         if (!isOnline.value) {
-          // Tocmai a revenit online
           isOnline.value = true
           error.value = null
-
-          if (offlineQueue.value.length > 0) {
-            await syncOfflineQueue()
-          }
-
+          if (offlineQueue.value.length > 0) await syncOfflineQueue()
           await loadPage(currentPage.value)
         }
       } catch {
-        // Serverul nu e disponibil
-        if (isOnline.value) {
+        failCount++
+        if (failCount >= 2 && isOnline.value) {
           isOnline.value = false
           error.value = 'Server unreachable. Working offline.'
         }
