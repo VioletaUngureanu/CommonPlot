@@ -7,7 +7,6 @@ import { BACKEND_URL } from '@/config'
 
 const users = useUsersStore()
 
-// ── State ─────────────────────────────────────────────────────
 interface ChatMessage {
   id?: string
   username: string
@@ -21,22 +20,19 @@ const newMessage  = ref('')
 const connected   = ref(false)
 const messagesEnd = ref<HTMLElement | null>(null)
 
-// ── STOMP client ──────────────────────────────────────────────
 let stompClient: Client | null = null
-
-function getWsUrl(): string {
-  return BACKEND_URL.replace(':5173', ':8080') + '/ws'
-}
 
 function connect() {
   stompClient = new Client({
-    webSocketFactory: () => new SockJS(getWsUrl()),
+    // ── WebSocket cu JWT în header ────────────────────────
+    webSocketFactory: () => new SockJS(`${BACKEND_URL}/ws`),
+    connectHeaders: {
+      Authorization: users.token ? `Bearer ${users.token}` : '',
+    },
     reconnectDelay: 5000,
 
     onConnect: () => {
       connected.value = true
-
-      // Ascultă mesajele live
       stompClient!.subscribe('/topic/chat', (message) => {
         try {
           const msg: ChatMessage = JSON.parse(message.body)
@@ -60,10 +56,14 @@ function disconnect() {
   connected.value = false
 }
 
-// ── Load history ──────────────────────────────────────────────
+// ── Load history cu JWT ───────────────────────────────────────
 async function loadHistory() {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/chat/history`)
+    const headers: Record<string, string> = {}
+    if (users.token) {
+      headers['Authorization'] = `Bearer ${users.token}`
+    }
+    const res = await fetch(`${BACKEND_URL}/api/chat/history`, { headers })
     if (res.ok) {
       messages.value = await res.json()
       scrollToBottom()
@@ -73,7 +73,6 @@ async function loadHistory() {
   }
 }
 
-// ── Send message ──────────────────────────────────────────────
 function sendMessage() {
   if (!newMessage.value.trim() || !connected.value) return
   if (!users.currentUser) return
@@ -97,13 +96,11 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
-// ── Scroll to bottom ──────────────────────────────────────────
 async function scrollToBottom() {
   await nextTick()
   messagesEnd.value?.scrollIntoView({ behavior: 'smooth' })
 }
 
-// ── Format time ───────────────────────────────────────────────
 function formatTime(iso: string): string {
   if (!iso) return ''
   return new Date(iso).toLocaleTimeString('ro-RO', {
@@ -111,7 +108,6 @@ function formatTime(iso: string): string {
   })
 }
 
-// ── Lifecycle ─────────────────────────────────────────────────
 onMounted(async () => {
   await loadHistory()
   connect()

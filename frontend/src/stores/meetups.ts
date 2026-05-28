@@ -13,6 +13,7 @@ import { validateMeetup, hasErrors } from '@/utils/meetupValidation'
 import * as api from '@/api/meetupApi'
 import type { PagedResponse } from '@/api/meetupApi'
 import { BACKEND_URL } from '@/config'
+import { useUsersStore } from '@/stores/users.ts'
 
 type OfflineOperation =
   | { type: 'create'; payload: CreateMeetupPayload }
@@ -84,14 +85,22 @@ export const useMeetupsStore = defineStore('meetups', () => {
   }
 
   function initNetworkMonitoring() {
-    let failCount = 0  // numărăm eșecurile consecutive
+    let failCount = 0
 
     setInterval(async () => {
       try {
+        // ── Adaugă JWT header ──────────────────────────────
+        const users = useUsersStore()
+        const headers: Record<string, string> = {}
+        if (users.token) {
+          headers['Authorization'] = `Bearer ${users.token}`
+        }
+
         await fetch('/api/meetups/stats/count', {
-          signal: AbortSignal.timeout(5000)  // ← mărești la 5s
+          headers,
+          signal: AbortSignal.timeout(5000)
         })
-        failCount = 0  // reset la succes
+        failCount = 0
 
         if (!isOnline.value) {
           isOnline.value = true
@@ -101,7 +110,6 @@ export const useMeetupsStore = defineStore('meetups', () => {
         }
       } catch {
         failCount++
-        // Consideră offline doar după 2 eșecuri consecutive
         if (failCount >= 2 && isOnline.value) {
           isOnline.value = false
           error.value = 'Server unreachable. Working offline.'

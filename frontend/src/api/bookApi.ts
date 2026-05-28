@@ -7,19 +7,32 @@ import { useUsersStore } from '@/stores/users.ts'
 
 const BASE = '/api/books'
 
+// ── apiFetch cu JWT + X-Username + X-Role ─────────────────────
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const users = useUsersStore()
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
+
+  // JWT token — necesar pentru Spring Security
+  if (users.token) {
+    headers['Authorization'] = `Bearer ${users.token}`
+  }
+  // Headers pentru logging
   if (users.currentUser) {
     headers['X-Username'] = users.currentUser.username
     headers['X-Role']     = users.currentUser.role
   }
+
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      ...headers,
+      ...(options?.headers as Record<string, string> ?? {}),
+    },
   })
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw err
@@ -29,7 +42,6 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 // ── CRUD ──────────────────────────────────────────────────────
-
 export const fetchBooks = (): Promise<Book[]> =>
   apiFetch(BASE)
 
@@ -46,7 +58,6 @@ export const deleteBook = (id: number): Promise<void> =>
   apiFetch(`${BASE}/${id}`, { method: 'DELETE' })
 
 // ── Relație 1-to-many ─────────────────────────────────────────
-
 export const fetchMeetupsByBook = (bookId: number): Promise<Meetup[]> =>
   apiFetch(`${BASE}/${bookId}/meetups`)
 

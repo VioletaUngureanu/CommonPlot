@@ -39,6 +39,8 @@ const handleLogin = async () => {
         <img src="../assets/logo.png" alt="CommonPlot" class="auth-logo__img" />
       </div>
 
+
+
       <!-- API error -->
       <div v-if="apiError" class="auth-api-error">{{ apiError }}</div>
 
@@ -83,6 +85,11 @@ const handleLogin = async () => {
         <button class="auth-btn" :disabled="loading" @click="handleLogin">
           {{ loading ? 'Logging in...' : 'LOGIN' }}
         </button>
+
+        <!-- Forgot password -->
+        <p class="auth-switch" style="margin-top: -0.5rem;">
+          <span class="auth-link" @click="router.push('/forgot-password')">Forgot password?</span>
+        </p>
 
         <!-- Register link -->
         <p class="auth-switch">

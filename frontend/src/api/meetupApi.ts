@@ -1,18 +1,15 @@
-
 //  false = REST  (/api/meetups)
 //  true  = GraphQL (/graphql)
 import { useUsersStore } from '@/stores/users.ts'
 
 const USE_GRAPHQL = false
-// ─────────────────────────────────────────────────────────────
 
 import type { Meetup, CreateMeetupPayload, UpdateMeetupPayload } from '../types/indexes.ts'
 import { GraphQLClient, gql } from 'graphql-request'
 
-const BASE_URL = '/api/meetups'
-const GQL_CLIENT  = new GraphQLClient('/api/graphql')
+const BASE_URL  = '/api/meetups'
+const GQL_CLIENT = new GraphQLClient('/api/graphql')
 
-// ── Tipuri răspuns backend ────────────────────────────────────
 export interface PagedResponse<T> {
   content: T[]
   page: number
@@ -29,35 +26,44 @@ export interface ApiError {
   errors?: Record<string, string>
 }
 
-// ══════════════════════════════════════════════════════════════
-//  REST helpers
-// ══════════════════════════════════════════════════════════════
-
+// ── apiFetch cu JWT + X-Username + X-Role ─────────────────────
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const users = useUsersStore()
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
+
+  // JWT token — necesar pentru Spring Security
+  if (users.token) {
+    headers['Authorization'] = `Bearer ${users.token}`
+  }
+  // Headers pentru logging
   if (users.currentUser) {
     headers['X-Username'] = users.currentUser.username
     headers['X-Role']     = users.currentUser.role
   }
+
   const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      ...headers,
+      ...(options?.headers as Record<string, string> ?? {}),
+    },
   })
+
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ status: response.status, error: response.statusText }))
+    const error = await response.json().catch(() => ({
+      status: response.status,
+      error: response.statusText,
+    }))
     throw error as ApiError
   }
   if (response.status === 204) return undefined as T
   return response.json()
 }
 
-// ══════════════════════════════════════════════════════════════
-//  GraphQL helpers
-// ══════════════════════════════════════════════════════════════
-
+// ── GraphQL helpers ───────────────────────────────────────────
 const MEETUP_FIELDS = `
   id titleEvent location date
   bookID bookTitle bookAuthor
@@ -116,50 +122,33 @@ async function gqlDeleteMeetup(id: number): Promise<void> {
   await GQL_CLIENT.request(mutation, { id })
 }
 
-// ══════════════════════════════════════════════════════════════
-//  CRUD — REST sau GraphQL în funcție de USE_GRAPHQL
-// ══════════════════════════════════════════════════════════════
-
-/** GET meetups paginat */
+// ── CRUD ─────────────────────────────────────────────────────
 export async function fetchMeetups(page = 0, size = 10): Promise<PagedResponse<Meetup>> {
   if (USE_GRAPHQL) return gqlFetchMeetups(page, size)
   return apiFetch(`${BASE_URL}?page=${page}&size=${size}`)
 }
 
-/** GET meetup by ID */
 export async function fetchMeetupById(id: number): Promise<Meetup> {
   if (USE_GRAPHQL) return gqlFetchMeetupById(id)
   return apiFetch(`${BASE_URL}/${id}`)
 }
 
-/** POST — creare */
 export async function createMeetup(payload: CreateMeetupPayload): Promise<Meetup> {
   if (USE_GRAPHQL) return gqlCreateMeetup(payload)
-  return apiFetch(BASE_URL, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
+  return apiFetch(BASE_URL, { method: 'POST', body: JSON.stringify(payload) })
 }
 
-/** PUT — actualizare */
 export async function updateMeetup(id: number, payload: Partial<Meetup>): Promise<Meetup> {
   if (USE_GRAPHQL) return gqlUpdateMeetup(id, payload)
-  return apiFetch(`${BASE_URL}/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-  })
+  return apiFetch(`${BASE_URL}/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
 }
 
-/** DELETE */
 export async function deleteMeetup(id: number): Promise<void> {
   if (USE_GRAPHQL) return gqlDeleteMeetup(id)
   return apiFetch(`${BASE_URL}/${id}`, { method: 'DELETE' })
 }
 
-// ══════════════════════════════════════════════════════════════
-//  Statistics — doar REST
-// ══════════════════════════════════════════════════════════════
-
+// ── Statistics ────────────────────────────────────────────────
 export async function fetchCount(): Promise<{ total: number }> {
   return apiFetch(`${BASE_URL}/stats/count`)
 }
@@ -176,10 +165,7 @@ export async function fetchAverageRating(): Promise<{ averageRating: number }> {
   return apiFetch(`${BASE_URL}/stats/average-rating`)
 }
 
-// ══════════════════════════════════════════════════════════════
-//  Generator (Silver)
-// ══════════════════════════════════════════════════════════════
-
+// ── Generator ─────────────────────────────────────────────────
 export async function startGenerator(interval = 2): Promise<{ status: string }> {
   return apiFetch(`${BASE_URL}/generator/start?interval=${interval}`, { method: 'POST' })
 }

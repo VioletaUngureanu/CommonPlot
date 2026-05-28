@@ -2,11 +2,16 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
+import basicSsl from '@vitejs/plugin-basic-ssl'
 
 export default defineConfig({
   plugins: [
     vue(),
     vueDevTools(),
+    basicSsl({
+      name: 'commonplot',
+      domains: ['localhost'],
+    }),
   ],
   define: {
     global: 'globalThis',
@@ -17,20 +22,24 @@ export default defineConfig({
     },
   },
   server: {
-    host: true,   // accesibil din rețea (laptop B / VM)
+    host: true,
     proxy: {
-      // REST API
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'https://localhost:8443',
         changeOrigin: true,
+        secure: false,
       },
-      // GraphQL
       '/graphql': {
-        target: 'http://localhost:8080',
+        target: 'https://localhost:8443',
         changeOrigin: true,
+        secure: false,
       },
-      // WebSocket — SockJS merge direct la backend, nu prin proxy
-      // (de aceea useWebSocket.ts folosește portul 8080 direct)
+      '/ws': {
+        target: 'https://localhost:8443',
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
     }
   }
 })
