@@ -28,9 +28,12 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final String frontendUrl;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter,
+                          @Value("${frontend.url}") String frontendUrl) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.frontendUrl = frontendUrl;
     }
 
     @Bean
@@ -68,8 +71,7 @@ public class SecurityConfig {
         };
     }
 
-    @Value("${frontend.url}")
-    private String frontendUrl;
+
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
