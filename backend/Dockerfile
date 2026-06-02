@@ -10,7 +10,7 @@ COPY gradle ./gradle
 RUN gradle dependencies --no-daemon || true
 
 COPY src ./src
-RUN gradle bootJar --no-daemon -x test
+RUN gradle bootJar --no-daemon --parallel -x test
 
 
 FROM eclipse-temurin:21-jre-alpine
