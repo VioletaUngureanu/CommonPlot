@@ -8,7 +8,7 @@ import {
 } from 'chart.js'
 import { useStatisticsStore } from '@/stores/statistics'
 import { useMeetupsStore } from '@/stores/meetups'
-import { useWebSocket } from '@/composables/useWebSocket'
+import { useWebSocket } from '../composables/UseWebSocket.ts'
 import type { Meetup } from '../types/indexes.ts'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
