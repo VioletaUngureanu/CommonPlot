@@ -50,7 +50,7 @@ const handleRegister = async () => {
     <div class="auth-card">
 
       <div class="auth-logo" @click="router.push('/')">
-        <img src="../assets/logo.png.png" alt="CommonPlot" class="auth-logo__img" />
+        <img src="../assets/logo.png" alt="CommonPlot" class="auth-logo__img" />
       </div>
 
       <h1 class="auth-title">Create Account</h1>
