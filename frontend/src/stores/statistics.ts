@@ -8,6 +8,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useMeetupsStore } from '@/stores/meetups'
+import { startGenerator, stopGenerator } from '@/api/meetupApi'
 import type { CreateMeetupPayload } from '../types/indexes.ts'
 import { BACKEND_URL } from '@/config'
 
@@ -62,22 +63,22 @@ export const useStatisticsStore = defineStore('statistics', () => {
   const addedByThread  = ref(0)
 
   // ── Backend generator (Silver) ────────────────────────────
+
+
   async function startThread() {
     if (threadRunning.value) return
     try {
       const intervalSeconds = Math.round(threadSpeed.value / 1000)
-
-      await fetch(`${BACKEND_URL}/api/meetups/generator/start?interval=${intervalSeconds}`, { method: 'POST' })
-
+      await startGenerator(intervalSeconds)
       threadRunning.value = true
     } catch {
-      console.error('Could not start generator — is the backend running?')
+      console.error('Could not start generator')
     }
   }
 
   async function stopThread() {
     try {
-      await fetch(`${BACKEND_URL}/api/meetups/generator/stop`, { method: 'POST' })
+      await stopGenerator()
     } catch { /* ignore */ }
     threadRunning.value = false
   }
