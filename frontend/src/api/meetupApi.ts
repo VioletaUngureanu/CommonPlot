@@ -8,6 +8,8 @@ import type { Meetup, CreateMeetupPayload, UpdateMeetupPayload } from '../types/
 import { GraphQLClient, gql } from 'graphql-request'
 
 import { BACKEND_URL } from '@/config'
+
+
 const BASE_URL  = `${BACKEND_URL}/api/meetups`
 const GQL_CLIENT = new GraphQLClient(`${BACKEND_URL}/graphql`)
 

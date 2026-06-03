@@ -1,6 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { useUsersStore } from '@/stores/users'
+
+
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -68,13 +71,20 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
-  const hasSession = document.cookie
-    .split(';')
-    .some(c => c.trim().startsWith('commonplot_session='))
+// router.beforeEach((to) => {
+//   const hasSession = document.cookie
+//     .split(';')
+//     .some(c => c.trim().startsWith('commonplot_session='))
+//
+//   if (to.meta.requiresAuth && !hasSession) return { name: 'login' }
+//   if (to.meta.guestOnly && hasSession)      return { name: 'meetups' }
+// })
 
-  if (to.meta.requiresAuth && !hasSession) return { name: 'login' }
-  if (to.meta.guestOnly && hasSession)      return { name: 'meetups' }
+router.beforeEach((to) => {
+  const users = useUsersStore()
+
+  if (to.meta.requiresAuth && !users.token) return { name: 'login' }
+  if (to.meta.guestOnly && users.token)      return { name: 'meetups' }
 })
 
 export default router
