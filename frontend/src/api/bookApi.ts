@@ -5,7 +5,8 @@
 import type { Book, Meetup, CreateBookPayload } from '../types/indexes.ts'
 import { useUsersStore } from '@/stores/users.ts'
 
-const BASE = '/api/books'
+import { BACKEND_URL } from '@/config'
+const BASE = `${BACKEND_URL}/api/books`
 
 // ── apiFetch cu JWT + X-Username + X-Role ─────────────────────
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
