@@ -96,7 +96,7 @@ export const useMeetupsStore = defineStore('meetups', () => {
           headers['Authorization'] = `Bearer ${users.token}`
         }
 
-        await fetch('/api/meetups/stats/count', {
+        await fetch(`${BACKEND_URL}/api/meetups/stats/count`, {
           headers,
           signal: AbortSignal.timeout(5000)
         })
